@@ -25,15 +25,15 @@ A Matrix that can no longer be changed, because its editing window has ended (a 
 _Avoid_: Archived matrix, closed matrix, locked session
 
 **Quadrant**:
-One of the four regions of the Matrix: Important + Urgent, Important + Not Urgent, Not Important + Urgent, Not Important + Not Urgent.
+One of the four regions of the Matrix: Important + Urgent, Important + Not Urgent, Not Important + Urgent, Not Important + Not Urgent. Each Quadrant holds its placed Tasks as a single ordered list whose order is the user's to set, never the app's.
 _Avoid_: Box, column, bucket
 
 **Placement**:
-The user's act of putting a Task into a Quadrant; a Task in a Quadrant is **placed**. Prioritization is always the user's judgment, never the app's. Until its Matrix freezes, a placed Task can be returned to the Task List, leaving no trace in that Matrix.
+The user's act of putting a Task into a Quadrant; a Task in a Quadrant is **placed**. Prioritization is always the user's judgment, never the app's. The user also chooses where in the Quadrant's list the Task goes, and can later move it to another position. Until its Matrix freezes, a placed Task can be returned to the Task List, leaving no trace in that Matrix.
 _Avoid_: Categorize, sort, classify
 
 **Completed Task**:
-A Task the user has marked done. It stays in its Quadrant, marked with a scribbled strike-through, rather than disappearing.
+A Task the user has marked done. It stays in its Quadrant, marked with a scribbled strike-through, rather than disappearing. Completing a Task does not move it within its Quadrant.
 _Avoid_: Done item, archived task, deleted task
 
 **Hub**:

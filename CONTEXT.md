@@ -37,12 +37,16 @@ A Task the user has marked done. It stays in its Quadrant, marked with a scribbl
 _Avoid_: Done item, archived task, deleted task
 
 **Hub**:
-A machine the user owns (e.g. their laptop) that keeps their Matrices and relays changes between their devices. One Hub holds exactly one person's Matrices.
+A machine the user owns (e.g. their laptop) that keeps their Matrices and relays changes between their devices. One Hub holds exactly one person's Matrices. Not part of v1, which runs on a single laptop.
 _Avoid_: Server, cloud, account
 
 **Pairing**:
-The one-time act of connecting a device to a Hub using the Hub's address and secret, after which the device syncs with it. Replaces signing in; there are no user accounts.
+The one-time act of connecting a device to a Hub with a Pairing Code, after which the device syncs with it. Replaces signing in; there are no user accounts.
 _Avoid_: Sign-in, login, registration
+
+**Pairing Code**:
+A short-lived code that works once and lets one new device pair. It can go either way: an already-paired device (or the Hub itself, for the first device) shows the code and the new device enters it, or the new device shows the code and an already-paired device enters it to let it in.
+_Avoid_: Hub secret, password, invite
 
 **Local-only**:
 Using Fourfold with no Hub: the Matrices live in a single browser and never sync. A Local-only user can later pair with a Hub and keep their Tasks.

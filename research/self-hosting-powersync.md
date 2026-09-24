@@ -1,0 +1,137 @@
+# Research: Self-hosting PowerSync on a Hub
+
+Follow-up to the sync-backend decision (issue #10, ADR `docs/adr/0001-self-hosted-personal-hub.md`). That decision says a **Hub** is self-hosted PowerSync + Postgres in Docker on a machine the user owns, devices connect by **Pairing** and then hold a long-lived access token, and **Local-only** use can switch to synced later. This note checks each of those against primary sources: PowerSync docs, the `powersync-service` and `powersync-js` repos, Postgres docs, Docker docs, Tailscale docs, and the WICG Local Network Access spec. Researched 2026-09-24. Answers issue #11.
+
+## TL;DR
+
+- **Feasible, with one correction.** PowerSync **cannot verify a long-lived access token.** Its JWTs must carry `iat` and `exp` no more than **1 day** apart. This limit is hard-coded in the self-hosted service. So Pairing has to issue a long-lived **device secret**, and the Hub exchanges that secret for short JWTs (for example, 1 hour) through the SDK's `fetchCredentials()`. This design also makes revoking one device easy: delete that device's secret on the Hub.
+- **License:** FSL-1.1-ALv2. Personal/internal use is explicitly permitted. Each release becomes Apache-2.0 two years after it ships. Cost is $0.
+- **The Hub runs 3 containers:** Postgres (`wal_level=logical`), the PowerSync service (`start -r unified`), and a small **Hub API** that we write ourselves (Pairing, a token endpoint, a JWKS, and an upload endpoint). **MongoDB is not needed.** Postgres bucket storage is GA and can share the Postgres 14+ server. The whole stack fits in about 1.5 GB of RAM.
+- **Sleeping or switched-off Hub:** this is fine. Postgres and PowerSync stop together, so no WAL builds up. PowerSync resumes from its replication slot. If a slot is ever lost, PowerSync re-replicates from scratch, which is trivial for one person's Tasks.
+- **Local-only → synced:** supported, and documented with a demo. The recommended pattern is `localOnly` tables plus `viewName` switching. On Pairing, the app copies the rows into synced tables, which queues them for upload. The simpler alternative also works: use synced tables and never call `connect()`, so writes pile up in the upload queue.
+- **Contradiction for the web client:** browsers block `http://` calls from an HTTPS page, and Chrome's Local Network Access treats Tailscale's `100.64.0.0/10` range as "local", which triggers a permission prompt. The Hub should therefore serve **HTTPS on its `*.ts.net` name**, which Tailscale's `tailscale serve`/`tailscale cert` provides for free. The web app should expect a one-time "allow local network access" prompt in Chrome.
+
+## 1. Self-hosted edition: license, services, resources, laptops
+
+**License: FSL-1.1-ALv2, and personal use is fine.**
+- The `powersync-service` repo's LICENSE is the *Functional Source License, Version 1.1, ALv2 Future License*. The only thing it prohibits is a "Competing Use", meaning *"making the Software available to others in a commercial product or service that"* substitutes for PowerSync or offers the same functionality. *"Permitted Purposes specifically include using the Software: 1. for your internal use and access; 2. for non-commercial education; 3. for non-commercial research…"* [powersync-service LICENSE](https://github.com/powersync-ja/powersync-service/blob/main/LICENSE)
+- Future license: *"an additional license to use the Software under the Apache License, Version 2.0 that is effective on the second anniversary of the date we make the Software available."* [same](https://github.com/powersync-ja/powersync-service/blob/main/LICENSE)
+- For Fourfold: one person running their own Hub is internal use. If Fourfold ever *sells* hosted Hubs, that could be a Competing Use, so re-check the license at that point.
+- The service sends anonymous usage metrics by default. Opt out with `telemetry.disable_telemetry_sharing: true`. [Usage Reporting](https://docs.powersync.com/maintenance-ops/self-hosting/usage-reporting)
+- The PowerSync Dashboard isn't available when self-hosting. [Self-Hosting](https://docs.powersync.com/intro/self-hosting)
+
+**Required services.**
+- The PowerSync Service image is `journeyapps/powersync-service` on Docker Hub. [Self-Hosting](https://docs.powersync.com/intro/self-hosting) Current tags (`latest`, `1.26.1`, published 2026-09-14) are built for **amd64 and arm64**, so they run on Apple Silicon as well. [Docker Hub tags API](https://hub.docker.com/v2/repositories/journeyapps/powersync-service/tags)
+- A self-hosted instance needs a source database plus *"a bucket storage database… MongoDB and Postgres are supported."* [Self-Hosted Instance Configuration](https://docs.powersync.com/configuration/powersync-service/self-hosted-instances)
+- **Postgres bucket storage status:** "Postgres Bucket Storage: GA". [Feature Status](https://docs.powersync.com/resources/feature-status) On **Postgres 14 and above**, *"the source database and bucket storage database can be on the same server. Using the same database (with separate schemas) is supported but may lead to higher CPU usage."* Below 14, separate servers are required. [Self-Hosted Instance Configuration → Postgres Version Requirements](https://docs.powersync.com/configuration/powersync-service/self-hosted-instances) There's a working demo: `self-host-demo/demos/nodejs-postgres-bucket-storage`. [self-host-demo README](https://github.com/powersync-ja/self-host-demo)
+- The official local Compose example runs PowerSync with `command: ["start", "-r", "unified"]`, which means API and replication in one process. It also runs Postgres with `command: ["postgres", "-c", "wal_level=logical"]`. [Local Development](https://docs.powersync.com/tools/local-development)
+- **Only one route prefix:** *"It is currently required to host the API container on a dedicated subdomain — we do not support running it on the same subdomain as another service."* [Deployment Architecture](https://docs.powersync.com/maintenance-ops/self-hosting/deployment-architecture) So the Hub API must be on a different host or port from PowerSync. It can't sit under a path prefix of the same origin.
+- **Daily compact job** is recommended for production (`docker run powersync compact`). [Deployment Architecture](https://docs.powersync.com/maintenance-ops/self-hosting/deployment-architecture) At Fourfold's data volume this is optional. It can run on Hub startup.
+
+**Minimum resources.**
+- PowerSync's "minimal setup": *"A single PowerSync 'compute' container (API + replication) with 512MB memory, 1 vCPU"*, plus a MongoDB node with 2 GB. [Deployment Architecture](https://docs.powersync.com/maintenance-ops/self-hosting/deployment-architecture) With Postgres bucket storage there is no MongoDB, so a Hub is about **512 MB for PowerSync + a few hundred MB for Postgres + the Hub API**. That's comfortably under 2 GB. (This last figure is an estimate. The docs only give the 512 MB/1 vCPU PowerSync number.)
+- Recommended Node heap setting: `NODE_OPTIONS=--max-old-space-size-percentage=80`. [same](https://docs.powersync.com/maintenance-ops/self-hosting/deployment-architecture)
+- Backups: *"None of the containers use any local storage"*. Bucket storage *"can be recovered by re-replicating from the source database."* [same](https://docs.powersync.com/maintenance-ops/self-hosting/deployment-architecture) **Only the Fourfold tables in Postgres need backing up.**
+
+**Laptops via Docker Desktop.**
+- Docker Desktop is free for *"personal use"* (and small businesses, education, non-commercial OSS). [Docker Desktop license](https://docs.docker.com/subscription/desktop-license/)
+- Windows needs the WSL 2 backend, 8 GB system RAM, and hardware virtualization. The documented editions are Windows 10 22H2 / Windows 11 23H2 *Enterprise, Pro, or Education*, but the page also says *"Windows Home or Education editions only allow you to run Linux containers."* [Docker Desktop on Windows](https://docs.docker.com/desktop/setup/install/windows-install/) The PowerSync and Postgres images are Linux containers, so a Windows Home Hub should work. Confirm this on the actual Hub machine, because the page's edition list doesn't name Home.
+- **Sleep behaviour (inference, no single primary source):** Docker Desktop's VM suspends with the host, so all containers stop together and open TCP connections drop. With `restart: unless-stopped` (as in the official Compose file) and Docker Desktop set to start on login, the stack comes back after a reboot. Clients just see the Hub as unreachable in the meantime, which the ADR already accepts.
+
+## 2. Postgres configuration, and the Hub sleeping for days
+
+**Settings PowerSync needs** (from the "Other / Self-hosted" section) [Source Database Setup](https://docs.powersync.com/configuration/source-db/setup):
+1. `wal_level = logical`. *"Postgres must be restarted after changing this config."* Postgres docs: *"logical adds information necessary to support logical decoding… This parameter can only be set at server start."* [Postgres: WAL settings](https://www.postgresql.org/docs/current/runtime-config-wal.html)
+2. A role: `CREATE ROLE powersync_role WITH REPLICATION BYPASSRLS LOGIN PASSWORD '…'; GRANT SELECT ON ALL TABLES IN SCHEMA public TO powersync_role;`
+3. A publication that **must be named `powersync`**: `CREATE PUBLICATION powersync FOR ALL TABLES;`. You can list specific tables instead. PowerSync *"has to read all updates present in the publication, regardless of whether the table is referenced in your Sync Streams."*
+- Minimum version: Postgres 11+ [same](https://docs.powersync.com/configuration/source-db/setup). Use 14+ so bucket storage can share the server (see §1).
+- Slots: PowerSync uses one replication slot, *"and an additional one while deploying a new Sync Streams… version"*. [Postgres Maintenance](https://docs.powersync.com/configuration/source-db/postgres-maintenance) The default `max_replication_slots` is enough.
+- The Hub API should write with its own ordinary role, not `powersync_role`.
+
+**Sleeping or off for days.**
+- Slots hold WAL: *"Replication slots persist across crashes and know nothing about the state of their consumer(s). They will prevent removal of required resources even when there is no connection using them."* [Postgres: Logical Decoding Concepts](https://www.postgresql.org/docs/current/logicaldecoding-explanation.html) PowerSync gives the same warning for orphaned slots (*"excessive disk usage"*). [Postgres Maintenance](https://docs.powersync.com/configuration/source-db/postgres-maintenance)
+- **Why this doesn't hurt a Hub:** WAL only grows when something writes to Postgres while PowerSync isn't consuming. On a Hub, Postgres and PowerSync run in the same Compose stack on the same machine. When the laptop sleeps or is off, *neither* runs, so nothing writes WAL. Uploads go through the Hub API on the same machine, so they're down too. The only case that builds up WAL is "PowerSync container crashed while Postgres and the Hub API kept accepting writes". At one person's Task volume that's kilobytes.
+- Defaults that matter: `max_slot_wal_keep_size` defaults to `-1`, which lets a slot *"retain an unlimited amount of WAL files"*. `idle_replication_slot_timeout` (Postgres 18+) defaults to `0`, which is disabled. [Postgres: Replication settings](https://www.postgresql.org/docs/current/runtime-config-replication.html) **Leave `idle_replication_slot_timeout` at 0.** Otherwise a Hub that's off for a long weekend would come back with an invalidated slot. Optionally set `max_slot_wal_keep_size` (for example `1GB`) as a disk-safety cap.
+- **Resuming:** PowerSync continues from the slot's LSN. If a slot is dropped while PowerSync is disconnected, *"PowerSync will automatically recreate the slot when it reconnects and restart replication."* If a slot is **invalidated** (`wal_status = lost`, from `max_slot_wal_keep_size` or `idle_timeout`), the recovery is: drop the slot, restart the service, and it *"will create a new replication slot and begin replication from scratch."* An invalidation *during the initial snapshot* is not retried automatically. [Postgres Maintenance](https://docs.powersync.com/configuration/source-db/postgres-maintenance) Re-replicating one person's Tasks takes seconds, so the Hub's startup script can do this automatically.
+
+## 3. Client auth without an auth provider
+
+**How PowerSync verifies tokens when self-hosted.** Everything goes in `client_auth` in `service.yaml` [Self-Hosted Instance Configuration](https://docs.powersync.com/configuration/powersync-service/self-hosted-instances), [Custom Authentication](https://docs.powersync.com/configuration/auth/custom):
+- `jwks_uri`: a URL (or a list of them) serving a JWKS. PowerSync *"refreshes the keys from the endpoint every few minutes"*.
+- `jwks.keys`: static keys inline in the config. Changing them needs a service restart.
+- `audience`: the list of accepted `aud` values.
+- Algorithms: RSA (`RS256/384/512`), HMAC (`HS256/384/512`, as `kty: oct`), OKP (`EdDSA` with Ed25519/Ed448), and EC (`ES256/384/512`). Asymmetric keys are recommended over HS256. [Self-Hosted Instance Configuration](https://docs.powersync.com/configuration/powersync-service/self-hosted-instances). The code agrees: `SUPPORTED_ALGORITHMS = [...HS, ...RSA, ...EC, ...OKP]`. [KeySpec.ts](https://github.com/powersync-ja/powersync-service/blob/main/packages/service-core/src/auth/KeySpec.ts)
+- A `jwks_uri` on a private address is fine. Blocking local addresses is opt-in (`block_local_jwks` / `jwks_reject_ip_ranges`). [compound-config-collector.ts](https://github.com/powersync-ja/powersync-service/blob/main/packages/service-core/src/util/config/compound-config-collector.ts), [PowerSyncConfig.ts](https://github.com/powersync-ja/powersync-service/blob/main/packages/types/src/config/PowerSyncConfig.ts) So `jwks_uri: http://hub-api:PORT/jwks` inside the Compose network works.
+
+**JWT requirements** [Custom Authentication](https://docs.powersync.com/configuration/auth/custom):
+- Signed by a key in the JWKS, with a `kid` that matches the key.
+- `aud` in the configured audiences.
+- `sub` = the user id. For a Hub this can be a constant such as `owner`, because one Hub is one Matrix.
+- **Lifetime limit:** *"The JWT must expire in 24 hours or less, and 60 minutes or less is recommended. Specifically, both `iat` and `exp` fields must be present, with a difference of 86,400 or less between them."* The same page also says *"JWTs older than 60 minutes are not accepted"*. The **code** is authoritative: `token_max_expiration: '1d'` is **hard-coded** in the self-hosted config [compound-config-collector.ts](https://github.com/powersync-ja/powersync-service/blob/main/packages/service-core/src/util/config/compound-config-collector.ts), and `verifyJwt` rejects tokens where `exp - iat` exceeds it: *"Token must expire in a maximum of … seconds"*. [KeyStore.ts](https://github.com/powersync-ja/powersync-service/blob/main/packages/service-core/src/auth/KeyStore.ts) (The only per-key override, `maxLifetimeSeconds`, is used for the built-in Supabase keys.)
+
+**Can the Hub sign its own long-lived tokens?** It can sign its own tokens, but **not long-lived ones**. They max out at 24 h. That is the one real conflict with the ADR's wording ("holds a long-lived access token that PowerSync verifies"). The documented pattern fills the gap: the SDK calls `fetchCredentials()` *"whenever it needs a fresh JWT"*. It pre-fetches when *"the token has 30 seconds or less remaining"*, re-fetches after an offline expiry, and re-fetches on a `401`. [Client-Side Integration](https://docs.powersync.com/configuration/app-backend/client-side-integration) The PowerSync token is explicitly *"separate from your application's own authentication session"*. [same](https://docs.powersync.com/configuration/app-backend/client-side-integration) So:
+
+- **Pairing** gives the device a long-lived **device secret** (random, 256-bit). The Hub API stores only a hash of it, in a `devices` table.
+- `fetchCredentials()` → `POST /token` on the Hub API with the device secret → the Hub API checks the device isn't revoked and returns `{ endpoint, token }`. The token is a JWT signed with the Hub's private key (EdDSA or ES256, one `kid`), `sub = owner`, `exp = iat + 1h`.
+- **Revoking one device:** delete or flag its row. It gets no new tokens, and the Hub API rejects its uploads immediately. Its current sync JWT stays valid until `exp`, so sync access lasts at most one token lifetime. PowerSync's own advice: *"Since there is no way to revoke a JWT once issued without rotating the key, we recommend using short expiration periods."* [Custom Authentication](https://docs.powersync.com/configuration/auth/custom)
+- There's an alternative: one key per device (`kid = device id`) served from the Hub API's `jwks_uri`, where revoking a device means removing its key. PowerSync picks this up within "a few minutes". That's also workable, but it still needs refreshes because of the 24 h cap, so the shared-key + device-secret design is simpler.
+- Offline for days: the token expires, and on reconnect the SDK calls `fetchCredentials()` again. [Client-Side Integration → Token Expiry While Offline](https://docs.powersync.com/configuration/app-backend/client-side-integration) If PowerSync is reachable, the Hub API is too (same machine), so this always works.
+
+**`uploadData()` and the minimal upload API.**
+- `uploadData()` is called after local writes, on (re)connect, and in a loop until the queue is empty. It retries on throw (default every 5 s). It *"is only called while the sync stream is connected"*. You must call `.complete()` on each batch or transaction. [Client-Side Integration](https://docs.powersync.com/configuration/app-backend/client-side-integration)
+- The backend API format is entirely up to you. The endpoint **must write to Postgres synchronously**, not through a queue. [Writing Client Changes](https://docs.powersync.com/handling-writes/writing-client-changes)
+- Ops are `PUT` (insert/replace), `PATCH` (update changed columns), and `DELETE`. Operations *"must be idempotent"*. The recommended behaviour is exactly the ADR's: *"Deletes always win… For multiple concurrent updates, the last update (as received by the server) to each individual field wins."* [Handling Update Conflicts](https://docs.powersync.com/handling-writes/handling-update-conflicts) Note that "last" means last *received by the Hub*, not last edited on a device.
+- Return `2xx` for validation errors, because `4xx`/`5xx` makes the client retry forever and blocks the queue. Use `5xx` only for transient failures. [Writing Client Changes](https://docs.powersync.com/handling-writes/writing-client-changes)
+- **The minimal Hub API** (one small Node service):
+  1. `POST /pair`: exchange the Pairing secret for a device secret.
+  2. `POST /token`: exchange a device secret for a 1 h JWT.
+  3. `GET /jwks`: the public key, for PowerSync's `jwks_uri`. Alternatively, put the key inline in `service.yaml`.
+  4. `POST /upload`: authenticated by the device secret or the JWT, applies a batch of PUT/PATCH/DELETE ops to `tasks` in one transaction with upsert, per-field update, and deletes-win (tombstone or ignore-after-delete).
+  5. Optionally, `GET/DELETE /devices` to list and revoke devices.
+- Sync config for one Matrix: a single global stream, for example `streams: { tasks: { auto_subscribe: true, queries: ["SELECT * FROM tasks"] } }`. No per-user filtering is needed. [Local Development](https://docs.powersync.com/tools/local-development)
+
+## 4. Local-only → synced
+
+PowerSync documents exactly this scenario (*"the user may want to register and start syncing data… at a later point"*) and offers two approaches. [Local-Only Usage](https://docs.powersync.com/client-sdks/advanced/local-only-usage)
+
+**A. Synced tables, never call `connect()`.** *"By default, all local changes will be stored in the upload queue, and will be uploaded to the backend server if the user registers at a later point."* The caveat: *"if the user never registers, this queue will keep on growing in size indefinitely"*. You can trim it with `DELETE FROM ps_crud`, but then the app has to rebuild the upload itself. [same](https://docs.powersync.com/client-sdks/advanced/local-only-usage) Running the database without `connect()` is the documented way to use it locally. [JavaScript Web SDK](https://docs.powersync.com/client-sdks/reference/javascript-web)
+
+**B. `localOnly` tables + `viewName` switching (recommended).** *"Use local-only tables until the user has registered or signed in. This would not store any data in the upload queue… Once the user registers, move the data over to synced tables, at which point the data would be placed in the upload queue."* [same](https://docs.powersync.com/client-sdks/advanced/local-only-usage) The reference implementation is the `react-supabase-todolist-optional-sync` demo:
+- Each table is defined twice: a synced `Table` and a `{ localOnly: true }` twin. `viewName` points the name the app queries (`todos`) at whichever copy is active. The inactive copy gets a name like `inactive_local_todos`, so app queries never change. [AppSchema.ts](https://github.com/powersync-ja/powersync-js/blob/main/demos/react-supabase-todolist-optional-sync/src/library/powersync/AppSchema.ts)
+- To switch: `await db.updateSchema(makeSchema(true))`, then in one `writeTransaction`, `INSERT INTO todos(...) SELECT ... FROM inactive_local_todos` (*"This records each operation in the upload queue"*), then delete the local copies. The current mode is persisted in `localStorage`. [AppSchema.ts](https://github.com/powersync-ja/powersync-js/blob/main/demos/react-supabase-todolist-optional-sync/src/library/powersync/AppSchema.ts), [SyncMode.ts](https://github.com/powersync-ja/powersync-js/blob/main/demos/react-supabase-todolist-optional-sync/src/library/powersync/SyncMode.ts)
+- Caveats from the demo README: *"`updateSchema` cannot be called inside a transaction, and it's recommended to perform the schema update when the database isn't connected."* In the demo, signing out clears all data. [demo README](https://github.com/powersync-ja/powersync-js/blob/main/demos/react-supabase-todolist-optional-sync/README.md)
+
+**So: yes, existing Tasks are kept and uploaded.** Fourfold caveats:
+- Task ids must be client-generated UUIDs from the start. PowerSync requires a text `id` column. [Client ID](https://docs.powersync.com/sync/advanced/client-id)
+- Pairing a Local-only browser with a Hub that **already has Tasks** merges the two sets: the Hub's rows sync down and the local rows upload. That's probably what the user wants, but the Pairing UI should say so.
+- Unpairing (synced → Local-only) isn't covered. The demo just wipes the data. Decide separately whether that's a v1 feature.
+
+## 5. Web SDK specifics
+
+- **Storage (VFS):** the default is `IDBBatchAtomicVFS` (IndexedDB, *"broadest browser compatibility"*). The OPFS options are faster: `OPFSCoopSyncVFS` (*"multi-tab support across all major browsers"*, including Safari/iOS), `AccessHandlePoolVFS` (single tab), and `OPFSWriteAheadVFS` (Chromium only). There are *"known issues with OPFS (all variants) in Safari's incognito mode"*. The compatibility matrix marks IDBBatchAtomicVFS as **not** multi-tab on Safari/iOS. [JavaScript Web SDK → SQLite Virtual File Systems](https://docs.powersync.com/client-sdks/reference/javascript-web) OPFS isn't supported in Firefox/Safari private tabs. [Supported Platforms](https://docs.powersync.com/resources/supported-platforms) **Suggested for Fourfold:** `OPFSCoopSyncVFS`.
+- **Multi-tab:** tabs share one database and one sync worker through a shared worker, where supported. You should instantiate only one `PowerSyncDatabase` per file. [JavaScript Web SDK](https://docs.powersync.com/client-sdks/reference/javascript-web)
+- **Secure context:** OPFS (`StorageManager.getDirectory()`) is *"available only in secure contexts (HTTPS)"*. [MDN: getDirectory](https://developer.mozilla.org/en-US/docs/Web/API/StorageManager/getDirectory) The app must be served over HTTPS (or `localhost` in development).
+- **Reaching the Hub from the browser (this changes the Hub design):**
+  - An HTTPS page can't call an `http://` Hub, because browsers block it as mixed content. So the Hub needs TLS.
+  - Tailscale can issue a real Let's Encrypt certificate for the Hub's `<machine>.<tailnet>.ts.net` name via `tailscale cert`. `tailscale serve` can terminate TLS in front of a local port. Certificates from `tailscale cert` must be renewed by you, and the machine name appears in the public Certificate Transparency logs. [Tailscale: Enabling HTTPS](https://tailscale.com/kb/1153/enabling-https)
+  - Chrome's **Local Network Access** puts `100.64.0.0/10` (Tailscale's address range) in the **"local"** address space, and it requires *"that the user grants permission to the initiating website to make connections to their local network."* [WICG Local Network Access spec](https://wicg.github.io/local-network-access/) If the Fourfold web app is served from a public origin, users will see a one-time permission prompt when the app first contacts the Hub.
+  - PowerSync (one port) and the Hub API (another port) must be served as separate origins (see §1). That means the Hub API must allow CORS from the app's origin.
+- **React Native:** `@powersync/web` and `@powersync/react-native` both build on `@powersync/common` [web package.json](https://github.com/powersync-ja/powersync-js/blob/main/packages/web/package.json), [react-native package.json](https://github.com/powersync-ja/powersync-js/blob/main/packages/react-native/package.json). They use the same `Schema`/`Table`/`column` API, including local-only tables, so the schema module can be shared by importing from `@powersync/common`. React Native uses `@op-engineering/op-sqlite` 1.17.0+ for storage. [React Native & Expo SDK](https://docs.powersync.com/client-sdks/reference/react-native-and-expo)
+
+## 6. Bottom line
+
+**The Hub design is feasible at $0, with one correction and one addition:**
+
+1. **Correction (Pairing):** a device can't hold a long-lived *PowerSync* token, because the service caps JWT lifetime at 24 h and this is hard-coded. Pairing should hand the device a long-lived **device secret**, and the Hub API mints short (about 1 h) JWTs from it in `fetchCredentials()`. This also gives per-device revocation, with at most one token lifetime of lingering sync access.
+2. **Addition (network):** the Hub must serve **HTTPS** on its Tailscale `*.ts.net` name, and the web app must handle Chrome's local-network permission prompt.
+
+**What a Hub runs** (one `docker compose` stack, about 1.5 GB RAM):
+
+| Piece | What it is |
+|---|---|
+| `postgres` (16+) | `wal_level=logical`, `powersync_role` (REPLICATION, BYPASSRLS), publication `powersync`, a `powersync` schema for bucket storage, a `tasks` table, a `devices` table |
+| `powersync` | `journeyapps/powersync-service`, `start -r unified`, Postgres bucket storage, `client_auth.jwks_uri` → Hub API, one global sync stream, telemetry off |
+| `hub-api` (ours) | `/pair`, `/token`, `/jwks`, `/upload` (LWW, deletes win, idempotent), device list/revoke, CORS |
+| TLS front | `tailscale serve` (or Caddy with a `tailscale cert` certificate) exposing PowerSync and the Hub API on separate HTTPS ports of `<hub>.<tailnet>.ts.net` |
+
+The Local-only → synced switch is well supported, via `localOnly` tables, `viewName`, and a copy-on-pair step.

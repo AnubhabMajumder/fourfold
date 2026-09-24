@@ -9,7 +9,7 @@ A single thing the user intends to do, written in their own words.
 _Avoid_: Todo, item, card
 
 **Task List**:
-The single, ongoing list of Tasks the user has written but not yet placed. It belongs to no date: an unplaced Task waits there across days until the user places it into a Matrix.
+The single, ongoing list of Tasks the user has written but not yet placed. Every Task is written here first; it belongs to no date, and an unplaced Task waits there across days until the user places it into a Matrix. A Task in the Task List can be edited or deleted, but not completed.
 _Avoid_: Inbox, backlog, today's list
 
 **Matrix**:
@@ -29,11 +29,11 @@ One of the four regions of the Matrix: Important + Urgent, Important + Not Urgen
 _Avoid_: Box, column, bucket
 
 **Placement**:
-The user's act of putting a Task into a Quadrant; a Task in a Quadrant is **placed**. Prioritization is always the user's judgment, never the app's. Until its Matrix freezes, a placed Task can be returned to the Task List, leaving no trace in that Matrix.
+The user's act of putting a Task into a Quadrant; a Task in a Quadrant is **placed**. Prioritization is always the user's judgment, never the app's. A Task is only ever placed from the Task List: it cannot be written directly into a Quadrant, nor moved directly from one Matrix to another. Until its Matrix freezes, an unfinished placed Task can be returned to the Task List, leaving no trace in that Matrix.
 _Avoid_: Categorize, sort, classify
 
 **Completed Task**:
-A Task the user has marked done. It stays in its Quadrant, marked with a scribbled strike-through, rather than disappearing.
+A placed Task the user has marked done. It stays in its Quadrant, marked with a scribbled strike-through, rather than disappearing. Only placed Tasks can be completed. Until its Matrix freezes, a Completed Task can be edited, moved to another Quadrant, or un-completed (becoming an ordinary placed Task again), but it cannot be deleted or returned to the Task List directly.
 _Avoid_: Done item, archived task, deleted task
 
 **Hub**:

@@ -23,3 +23,15 @@ _Avoid_: Categorize, sort, classify
 **Completed Task**:
 A Task the user has marked done. It stays in its Quadrant, marked with a scribbled strike-through, rather than disappearing.
 _Avoid_: Done item, archived task, deleted task
+
+**Hub**:
+A machine the user owns (e.g. their laptop) that keeps their Matrix and relays changes between their devices. One Hub holds exactly one person's Matrix.
+_Avoid_: Server, cloud, account
+
+**Pairing**:
+The one-time act of connecting a device to a Hub using the Hub's address and secret, after which the device syncs with it. Replaces signing in; there are no user accounts.
+_Avoid_: Sign-in, login, registration
+
+**Local-only**:
+Using Fourfold with no Hub: the Matrix lives in a single browser and never syncs. A Local-only user can later pair with a Hub and keep their Tasks.
+_Avoid_: Guest mode, offline mode, signed-out

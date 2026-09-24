@@ -1,0 +1,23 @@
+{
+  "name": "prototype-visual-direction",
+  "private": true,
+  "description": "PROTOTYPE (throwaway) for issue #8: how far does the hand-drawn feel extend?",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --open",
+    "build": "tsc --noEmit && vite build"
+  },
+  "dependencies": {
+    "perfect-freehand": "^1.2.3",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "roughjs": "^4.6.6"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1"
+  }
+}

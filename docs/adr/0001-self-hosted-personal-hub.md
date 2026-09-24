@@ -8,3 +8,7 @@ Fourfold syncs through a **Hub**: self-hosted PowerSync + Postgres in Docker on 
 - The Hub's database is the only server-side copy, so backups are the owner's job.
 - **Local-only** use (no Hub) is a supported mode, accepting that browser storage may be evicted.
 - PowerSync rejects tokens that live longer than 24 hours, so the Hub runs a small API of our own (pairing, token exchange, uploads) alongside PowerSync, and serves HTTPS (e.g. `tailscale serve`) because browsers won't call a plain-HTTP Hub from the web app.
+
+## Update (2026-09-25): deferred past v1
+
+v1 runs on one laptop: the web app in that laptop's browser, the Tasks in a database on the same machine. There's no second device, so the Hub, Pairing, and multi-device sync are a later effort, as is moving to an online database. The Pairing design agreed so far is recorded on the "Connecting a device to a Hub" ticket (issue #7). This decision still stands for when multi-device sync returns.

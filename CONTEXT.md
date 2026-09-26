@@ -49,5 +49,5 @@ A short-lived code that works once and lets one new device pair. It can go eithe
 _Avoid_: Hub secret, password, invite
 
 **Local-only**:
-Using Fourfold with no Hub: the Matrices live in a single browser and never sync. A Local-only user can later pair with a Hub and keep their Tasks.
+Using Fourfold with no Hub: the Matrices live in a single browser and never sync. A Local-only user can later pair with a Hub and keep their Tasks. Not part of v1, which keeps its Tasks only in the database on the laptop.
 _Avoid_: Guest mode, offline mode, signed-out

@@ -90,16 +90,30 @@ export function scribble(x: number, y: number, w: number, h: number, seed: numbe
   return inkPath(pts, Math.max(2, h * 0.11));
 }
 
-/** Pencil zigzag across one line box of text, drawn like /|/|/| (up-slash, drop straight down). */
-export function zigzag(x: number, y: number, w: number, h: number, seed: number): SketchPath[] {
-  const top = y + h * 0.3;
-  const bottom = y + h * 0.78;
-  const step = Math.max(8, h * 0.7);
-  const end = x + w + 2;
-  const pts: [number, number][] = [[x - 2, bottom]];
-  for (let cx = x - 2; cx < end; ) {
-    cx = Math.min(cx + step, end);
-    pts.push([cx, top], [cx, bottom]);
+/** Felt-pen /|/|/| zigzag across one line box of text: uneven teeth, drifting baseline, down strokes that lean. */
+export function zigzag(x: number, y: number, w: number, h: number, seed: number): string {
+  const r = rng(seed);
+  const jit = (n: number) => (r() - 0.5) * n;
+  const top = y + h * 0.28;
+  const bottom = y + h * 0.8;
+  const drift = jit(h * 0.2); // the whole stroke rises or sinks a little from left to right
+  const lift = (cx: number) => ((cx - x) / Math.max(w, 1)) * drift;
+  const end = x + w + 3;
+  let cx = x - 3;
+  const corners: number[][] = [[cx, bottom + jit(h * 0.08)]];
+  while (cx < end) {
+    cx = Math.min(cx + h * (0.75 + r() * 0.3), end);
+    corners.push([cx + jit(2), top + lift(cx) + jit(h * 0.14)]);
+    corners.push([cx - 1.5 - r() * 2.5, bottom + lift(cx) + jit(h * 0.12)]);
   }
-  return roughPolyline(pts, { seed, roughness: 0.6, bowing: 0.3, strokeWidth: 1.3, disableMultiStroke: true });
+  // Wobble along each stroke so the corners stay sharp but the lines aren't ruler-straight.
+  const pts: number[][] = [corners[0]];
+  for (let i = 1; i < corners.length; i++) {
+    const [ax, ay] = corners[i - 1];
+    const [bx, by] = corners[i];
+    for (const t of [0.35, 0.7]) pts.push([ax + (bx - ax) * t + jit(1.2), ay + (by - ay) * t + jit(1.2)]);
+    pts.push(corners[i]);
+  }
+  const outline = getStroke(pts, { size: Math.max(1.8, h * 0.07), thinning: 0.15, smoothing: 0.25, streamline: 0.15, simulatePressure: false, last: true });
+  return pathFromStroke(outline);
 }

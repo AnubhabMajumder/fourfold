@@ -83,13 +83,6 @@ export function Variant({ store, strike }: VariantProps) {
 
   return (
     <div className="vd">
-      <svg className="vd-grain" aria-hidden="true">
-        <filter id="vd-grain">
-          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3" />
-          <feColorMatrix values="0 0 0 0 0.35  0 0 0 0 0.3  0 0 0 0 0.2  0 0 0 0.09 0" />
-        </filter>
-        <rect width="100%" height="100%" filter="url(#vd-grain)" />
-      </svg>
       <header className="vd-top">
         <h1>Fourfold</h1>
         <nav className="vd-date">
@@ -101,9 +94,6 @@ export function Variant({ store, strike }: VariantProps) {
             <button aria-label="Next date">›</button>
           </RoughBox>
         </nav>
-        <RoughBox seed={13} className="vd-pill" roughness={0.8}>
-          Current Matrix
-        </RoughBox>
       </header>
       <div className="vd-body">
         <aside className={`vd-page vd-list${drag?.zone === 'list' ? ' over' : ''}`} data-drop="list" aria-labelledby="vd-list">
@@ -149,7 +139,7 @@ export function Variant({ store, strike }: VariantProps) {
             <span>not important</span>
           </div>
           <main className="vd-matrix">
-            <Dividers kind="pencil" seed={31} />
+            <Dividers kind="ink" seed={31} />
             {QUADRANTS.map((q, i) => (
               <section key={i} className={`vd-q${drag?.zone === i ? ' over' : ''}`} data-drop={i} aria-label={q.label}>
                 <ul>

@@ -86,26 +86,22 @@ export function StrikeText({ id, text, done, style }: { id: string; text: string
       {done && style !== 'css' && (
         <svg className="strike-svg" aria-hidden="true">
           {lines.map((l, i) =>
-            style !== 'ink' ? (
+            style === 'rough' ? (
               <g key={i} style={{ '--d': `${i * 0.25}s` } as CSSProperties}>
                 <Paths
-                  className={animate ? (style === 'zigzag' ? 'draw-on draw-slow' : 'draw-on') : undefined}
-                  paths={
-                    style === 'zigzag'
-                      ? zigzag(l.x, l.y, l.w, l.h, seed + i)
-                      : roughLine(l.x - 3, l.y + l.h * 0.58, l.x + l.w + 3, l.y + l.h * 0.5, {
-                          seed: seed + i,
-                          roughness: 1.6,
-                          bowing: 2,
-                          strokeWidth: 1.8,
-                        })
-                  }
+                  className={animate ? 'draw-on' : undefined}
+                  paths={roughLine(l.x - 3, l.y + l.h * 0.58, l.x + l.w + 3, l.y + l.h * 0.5, {
+                    seed: seed + i,
+                    roughness: 1.6,
+                    bowing: 2,
+                    strokeWidth: 1.8,
+                  })}
                 />
               </g>
             ) : (
               <path
                 key={i}
-                d={scribble(l.x, l.y, l.w, l.h, seed + i)}
+                d={(style === 'zigzag' ? zigzag : scribble)(l.x, l.y, l.w, l.h, seed + i)}
                 fill="currentColor"
                 className={animate ? 'wipe-on' : undefined}
                 style={{ '--d': `${i * 0.3}s` } as CSSProperties}

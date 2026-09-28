@@ -3,7 +3,7 @@
 // C's sketched look everywhere, drag-and-drop placement with B-style quadrant buttons as the fallback.
 import { useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { DATE } from '../bits';
-import { Dividers, QuadIcon, RoughBox, RoughCheck, StrikeText } from '../draw';
+import { DeleteIcon, Dividers, QuadIcon, RoughBox, RoughCheck, StrikeText } from '../draw';
 import { seedOf } from '../sketch';
 import { QUADRANTS, type QuadrantIndex, type Store, type Task, type VariantProps } from '../store';
 
@@ -72,6 +72,15 @@ function withDropLine(tasks: Task[], zone: Zone, drag: Drag | null, item: (t: Ta
   return out;
 }
 
+/** Sketched × that deletes the Task outright (no undo in the prototype). */
+function DeleteButton({ store, t }: { store: Store; t: Task }) {
+  return (
+    <button className="vd-delete" onClick={() => store.remove(t.id)} title="Delete Task" aria-label={`Delete ${t.text}`}>
+      <DeleteIcon seed={seedOf(t.id) + 9} />
+    </button>
+  );
+}
+
 export function Variant({ store, strike }: VariantProps) {
   const { drag, start } = useDragPlace(store);
   const [text, setText] = useState('');
@@ -107,7 +116,7 @@ export function Variant({ store, strike }: VariantProps) {
             }}
           >
             <RoughBox seed={21} className="vd-input">
-              <input value={text} onChange={(e) => setText(e.target.value)} placeholder="write a Task…" aria-label="New Task" />
+              <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Write a Task…" aria-label="New Task" />
             </RoughBox>
             <RoughBox seed={22} className="vd-addbtn">
               <button type="submit">add</button>
@@ -123,6 +132,7 @@ export function Variant({ store, strike }: VariantProps) {
                       <QuadIcon q={i} seed={seedOf(t.id) + i} />
                     </button>
                   ))}
+                  <DeleteButton store={store} t={t} />
                 </span>
               </li>
             ))}
@@ -155,6 +165,7 @@ export function Variant({ store, strike }: VariantProps) {
                       <button className="vd-return" onClick={() => store.unplace(t.id)} title="Return to Task List" aria-label={`Return ${t.text} to Task List`}>
                         ↩
                       </button>
+                      <DeleteButton store={store} t={t} />
                     </li>
                   ))}
                 </ul>

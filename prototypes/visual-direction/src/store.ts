@@ -59,6 +59,7 @@ export function useTasks() {
         const at = rest.indexOf(zone[index]);
         return [...rest.slice(0, at), moved, ...rest.slice(at)];
       }),
+    remove: (id: string) => setTasks((ts) => ts.filter((t) => t.id !== id)),
     add: (text: string) => setTasks((ts) => [...ts, { id: `n${nextId++}`, text, quadrant: null, done: false }]),
   };
 }

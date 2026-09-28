@@ -193,6 +193,19 @@ export function RoughCheck({ seed }: { seed: number }) {
   );
 }
 
+/** Hand-drawn × for deleting a Task. */
+export function DeleteIcon({ seed }: { seed: number }) {
+  const paths = useMemo(() => {
+    const o = { roughness: 0.9, bowing: 0.6, strokeWidth: 1.6, disableMultiStroke: true };
+    return [...roughLine(3, 3, 15, 15, { ...o, seed }), ...roughLine(15, 3, 3, 15, { ...o, seed: seed + 1 })];
+  }, [seed]);
+  return (
+    <svg className="quad-icon" viewBox="0 0 18 18" aria-hidden="true">
+      <Paths paths={paths} />
+    </svg>
+  );
+}
+
 /** Mini Matrix with the target Quadrant filled in: tells you where a placement button puts the Task. */
 export function QuadIcon({ q, seed }: { q: number; seed: number }) {
   const paths = useMemo(() => {

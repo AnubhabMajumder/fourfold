@@ -137,7 +137,7 @@ s { opacity: 0.6; }
 .vd button { border: 0; background: none; }
 .vd-top { display: flex; align-items: center; gap: 28px; padding: 10px 24px 8px; background: #fff; border-bottom: 1px solid #e5e5e5; }
 .vd-top h1 { font: 700 36px/1 Caveat, cursive; margin: 0; }
-.vd-date { display: flex; align-items: center; gap: 12px; font: 700 26px/1 Caveat, cursive; }
+.vd-date { margin-left: auto; display: flex; align-items: center; gap: 12px; font: 700 26px/1 Caveat, cursive; }
 .vd-btn button { width: 34px; height: 30px; font-size: 22px; }
 .vd-body { flex: 1; display: flex; min-height: 0; padding-bottom: 60px; }
 .vd-page { background: #fff; }
@@ -165,6 +165,12 @@ s { opacity: 0.6; }
 .vd-check input:focus-visible + .vd-box { outline: 2px solid #1f4fa3; outline-offset: 2px; }
 .vd-return { opacity: 0; color: #999; }
 .vd-q li:hover .vd-return, .vd-return:focus-visible { opacity: 1; }
+.vd .vd-delete { display: flex; padding: 3px; color: #aaa; opacity: 0; }
+.vd .place-buttons .vd-delete { margin-left: 6px; }
+.vd li:hover .vd-delete, .vd .vd-delete:focus-visible { opacity: 1; }
+.vd button.vd-delete:hover { color: #b0321f; }
+.vd-q .vd-delete { margin-top: 2px; }
+@media (hover: none) { .vd .vd-delete, .vd-return { opacity: 1; } }
 .vd li[data-id] { touch-action: none; cursor: grab; user-select: none; }
 .vd li.dragging { opacity: .3; }
 .vd .vd-drop-line { min-height: 0; height: 0; padding: 0; margin: 2px 0; border-top: 3px solid #3b3b3b; border-radius: 2px; }

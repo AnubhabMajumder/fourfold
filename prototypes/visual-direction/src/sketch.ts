@@ -94,15 +94,15 @@ export function scribble(x: number, y: number, w: number, h: number, seed: numbe
 export function zigzag(x: number, y: number, w: number, h: number, seed: number): string {
   const r = rng(seed);
   const jit = (n: number) => (r() - 0.5) * n;
-  const top = y + h * 0.28;
-  const bottom = y + h * 0.8;
+  const top = y + h * 0.18;
+  const bottom = y + h * 0.88;
   const drift = jit(h * 0.2); // the whole stroke rises or sinks a little from left to right
   const lift = (cx: number) => ((cx - x) / Math.max(w, 1)) * drift;
   const end = x + w + 3;
   let cx = x - 3;
   const corners: number[][] = [[cx, bottom + jit(h * 0.08)]];
   while (cx < end) {
-    cx = Math.min(cx + h * (0.75 + r() * 0.3), end);
+    cx = Math.min(cx + h * (0.6 + r() * 0.2), end);
     corners.push([cx + jit(2), top + lift(cx) + jit(h * 0.14)]);
     corners.push([cx - 1.5 - r() * 2.5, bottom + lift(cx) + jit(h * 0.12)]);
   }
@@ -114,6 +114,6 @@ export function zigzag(x: number, y: number, w: number, h: number, seed: number)
     for (const t of [0.35, 0.7]) pts.push([ax + (bx - ax) * t + jit(1.2), ay + (by - ay) * t + jit(1.2)]);
     pts.push(corners[i]);
   }
-  const outline = getStroke(pts, { size: Math.max(1.8, h * 0.07), thinning: 0.15, smoothing: 0.25, streamline: 0.15, simulatePressure: false, last: true });
+  const outline = getStroke(pts, { size: Math.max(2.8, h * 0.115), thinning: 0.15, smoothing: 0.25, streamline: 0.15, simulatePressure: false, last: true });
   return pathFromStroke(outline);
 }

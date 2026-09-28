@@ -1,23 +1,23 @@
 // PROTOTYPE for #8 "Visual direction": three variants of how far the hand-drawn feel extends,
-// switchable via ?variant=A|B|C, plus ?strike=rough|ink|css for the Completed Task strike-through.
+// switchable via ?variant=A|B|C|D, plus ?strike=zigzag|rough|ink|css for the Completed Task strike-through.
 import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
-import { useTasks, type StrikeStyle } from './store';
+import { STRIKES, useTasks, type StrikeStyle } from './store';
 import { PrototypeSwitcher } from './PrototypeSwitcher';
 import * as A from './variants/A_MatrixOnly';
 import * as B from './variants/B_InkMatrix';
 import * as C from './variants/C_Notebook';
+import * as D from './variants/D_Picks';
 
-const VARIANTS = { A, B, C };
+const VARIANTS = { A, B, C, D };
 type Key = keyof typeof VARIANTS;
-const STRIKES: StrikeStyle[] = ['rough', 'ink', 'css'];
 
 function readParams(): { variant: Key; strike: StrikeStyle } {
   const p = new URLSearchParams(location.search);
   const v = p.get('variant') ?? '';
   const s = p.get('strike') as StrikeStyle;
-  return { variant: v in VARIANTS ? (v as Key) : 'A', strike: STRIKES.includes(s) ? s : 'rough' };
+  return { variant: v in VARIANTS ? (v as Key) : 'D', strike: STRIKES.includes(s) ? s : 'zigzag' };
 }
 
 function App() {

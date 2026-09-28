@@ -89,3 +89,17 @@ export function scribble(x: number, y: number, w: number, h: number, seed: numbe
   }
   return inkPath(pts, Math.max(2, h * 0.11));
 }
+
+/** Pencil zigzag across one line box of text, drawn like /|/|/| (up-slash, drop straight down). */
+export function zigzag(x: number, y: number, w: number, h: number, seed: number): SketchPath[] {
+  const top = y + h * 0.3;
+  const bottom = y + h * 0.78;
+  const step = Math.max(8, h * 0.7);
+  const end = x + w + 2;
+  const pts: [number, number][] = [[x - 2, bottom]];
+  for (let cx = x - 2; cx < end; ) {
+    cx = Math.min(cx + step, end);
+    pts.push([cx, top], [cx, bottom]);
+  }
+  return roughPolyline(pts, { seed, roughness: 0.6, bowing: 0.3, strokeWidth: 1.3, disableMultiStroke: true });
+}

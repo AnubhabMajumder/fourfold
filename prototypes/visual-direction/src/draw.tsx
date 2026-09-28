@@ -1,7 +1,7 @@
 ﻿// PROTOTYPE: decorative, aria-hidden SVG layers. Meaning always lives in real DOM text/semantics.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { StrikeStyle } from './store';
-import { inkLine, roughLine, roughPolyline, roughRect, scribble, seedOf, type SketchPath } from './sketch';
+import { inkLine, roughLine, roughPolyline, roughRect, scribble, seedOf, zigzag, type SketchPath } from './sketch';
 
 export function useSize<T extends HTMLElement>() {
   const ref = useRef<T>(null);
@@ -86,16 +86,20 @@ export function StrikeText({ id, text, done, style }: { id: string; text: string
       {done && style !== 'css' && (
         <svg className="strike-svg" aria-hidden="true">
           {lines.map((l, i) =>
-            style === 'rough' ? (
+            style !== 'ink' ? (
               <g key={i} style={{ '--d': `${i * 0.25}s` } as CSSProperties}>
                 <Paths
-                  className={animate ? 'draw-on' : undefined}
-                  paths={roughLine(l.x - 3, l.y + l.h * 0.58, l.x + l.w + 3, l.y + l.h * 0.5, {
-                    seed: seed + i,
-                    roughness: 1.6,
-                    bowing: 2,
-                    strokeWidth: 1.8,
-                  })}
+                  className={animate ? (style === 'zigzag' ? 'draw-on draw-slow' : 'draw-on') : undefined}
+                  paths={
+                    style === 'zigzag'
+                      ? zigzag(l.x, l.y, l.w, l.h, seed + i)
+                      : roughLine(l.x - 3, l.y + l.h * 0.58, l.x + l.w + 3, l.y + l.h * 0.5, {
+                          seed: seed + i,
+                          roughness: 1.6,
+                          bowing: 2,
+                          strokeWidth: 1.8,
+                        })
+                  }
                 />
               </g>
             ) : (
@@ -189,6 +193,22 @@ export function RoughCheck({ seed }: { seed: number }) {
   return (
     <svg className="rough-check" aria-hidden="true" viewBox="0 0 24 24">
       <Paths paths={roughPolyline([[4, 13], [10, 20], [22, 2]], { seed, roughness: 1.2, strokeWidth: 2.4 })} />
+    </svg>
+  );
+}
+
+/** Mini Matrix with the target Quadrant filled in: tells you where a placement button puts the Task. */
+export function QuadIcon({ q, seed }: { q: number; seed: number }) {
+  const paths = useMemo(() => {
+    const o = { seed, roughness: 0.8, bowing: 0.5, strokeWidth: 1.3 };
+    return [
+      ...roughRect(1, 1, 16, 16, o),
+      ...roughRect(q % 2 ? 10 : 3, q < 2 ? 3 : 10, 5, 5, { ...o, fill: 'currentColor', fillStyle: 'solid' }),
+    ];
+  }, [q, seed]);
+  return (
+    <svg className="quad-icon" viewBox="0 0 18 18" aria-hidden="true">
+      <Paths paths={paths} />
     </svg>
   );
 }

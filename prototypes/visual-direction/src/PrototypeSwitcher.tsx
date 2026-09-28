@@ -1,6 +1,6 @@
 // PROTOTYPE: floating variant switcher. Deliberately not styled like any variant.
 import { useEffect } from 'react';
-import type { StrikeStyle } from './store';
+import { STRIKES, type StrikeStyle } from './store';
 
 type Props = {
   variants: { key: string; name: string }[];
@@ -9,8 +9,6 @@ type Props = {
   strike: StrikeStyle;
   onStrike: (s: StrikeStyle) => void;
 };
-
-const STRIKES: StrikeStyle[] = ['rough', 'ink', 'css'];
 
 export function PrototypeSwitcher({ variants, current, onVariant, strike, onStrike }: Props) {
   const i = variants.findIndex((v) => v.key === current);

@@ -48,10 +48,22 @@ export function useTasks() {
     toggle: (id: string) => setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, done: !t.done } : t))),
     place: (id: string, q: QuadrantIndex) => moveToEnd(id, { quadrant: q }),
     unplace: (id: string) => moveToEnd(id, { quadrant: null, done: false }),
+    /** Drop a Task into a Quadrant (or back to the Task List, q = null) before the index-th Task already there. */
+    move: (id: string, q: QuadrantIndex | null, index: number) =>
+      setTasks((ts) => {
+        const t = ts.find((x) => x.id === id)!;
+        const rest = ts.filter((x) => x.id !== id);
+        const moved = { ...t, quadrant: q, done: q === null ? false : t.done };
+        const zone = rest.filter((x) => x.quadrant === q);
+        if (index >= zone.length) return [...rest, moved];
+        const at = rest.indexOf(zone[index]);
+        return [...rest.slice(0, at), moved, ...rest.slice(at)];
+      }),
     add: (text: string) => setTasks((ts) => [...ts, { id: `n${nextId++}`, text, quadrant: null, done: false }]),
   };
 }
 
 export type Store = ReturnType<typeof useTasks>;
-export type StrikeStyle = 'rough' | 'ink' | 'css';
+export type StrikeStyle = 'zigzag' | 'rough' | 'ink' | 'css';
+export const STRIKES: StrikeStyle[] = ['zigzag', 'rough', 'ink', 'css'];
 export type VariantProps = { store: Store; strike: StrikeStyle };

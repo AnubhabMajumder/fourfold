@@ -10,15 +10,20 @@ import { QUADRANTS, type QuadrantIndex, type Store, type Task, type VariantProps
 
 export const name = 'Your picks';
 
-// Plain and the two ivory keepers; the dark ones are still being iterated on (round 6: new bases, not just new accents).
+// Plain and the two ivory keepers, chalkboard, and round 7's dark variations: ivory ink and noir & blue.
 const THEMES = {
   plain: { label: 'Plain', group: 'Plain' },
   'ivory-navy': { label: 'navy', group: 'Ivory' },
   'ivory-black': { label: 'black', group: 'Ivory' },
-  'noir-ivory': { label: 'ivory ink', group: 'Dark' },
   'noir-chalk': { label: 'chalkboard', group: 'Dark' },
-  'noir-midnight': { label: 'midnight', group: 'Dark' },
-  'noir-redpen': { label: 'red pen', group: 'Dark' },
+  'noir-ivory': { label: 'warm black', group: 'IvoryInk' },
+  'noir-ivory-espresso': { label: 'espresso', group: 'IvoryInk' },
+  'noir-ivory-charcoal': { label: 'charcoal', group: 'IvoryInk' },
+  'noir-ivory-gold': { label: 'gold strike', group: 'IvoryInk' },
+  'noir-blue-cobalt': { label: 'cobalt strike', group: 'NoirBlue' },
+  'noir-blue-steel': { label: 'steel lines', group: 'NoirBlue' },
+  'noir-blue-biro': { label: 'blue biro', group: 'NoirBlue' },
+  'noir-blue-black': { label: 'blue-black', group: 'NoirBlue' },
 } as const;
 type Theme = keyof typeof THEMES;
 
@@ -165,7 +170,7 @@ function Settings({ theme, setTheme }: { theme: Theme; setTheme: (t: Theme) => v
     const r = btn.current!.getBoundingClientRect();
     setAt({ right: Math.max(8, innerWidth - r.right), bottom: innerHeight - r.top + 6 });
   };
-  const groups = ['Plain', 'Ivory', 'Dark'] as const;
+  const groups = { Plain: '', Ivory: 'ivory &', Dark: 'dark', IvoryInk: 'ivory ink on', NoirBlue: 'noir &' };
   return (
     <>
       <button ref={btn} className="vd-gear" onClick={toggle} aria-expanded={at !== null} aria-label="Settings" title="Settings">
@@ -174,9 +179,9 @@ function Settings({ theme, setTheme }: { theme: Theme; setTheme: (t: Theme) => v
       {at && (
         <div ref={pop} className="vd-pop vd-settings" style={at} role="dialog" aria-label="Settings">
           <h2>Colours</h2>
-          {groups.map((g) => (
+          {(Object.keys(groups) as (keyof typeof groups)[]).map((g) => (
             <div key={g} className="vd-swatches">
-              {g !== 'Plain' && <span className="vd-group">{g === 'Ivory' ? 'ivory &' : 'dark'}</span>}
+              {groups[g] && <span className="vd-group">{groups[g]}</span>}
               {(Object.keys(THEMES) as Theme[])
                 .filter((k) => THEMES[k].group === g)
                 .map((k) => (

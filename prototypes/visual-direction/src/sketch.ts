@@ -149,7 +149,7 @@ export function gearDoodle(seed: number): string[] {
   }
   const pen = { thinning: 0.5, smoothing: 0.15, streamline: 0.1, simulatePressure: true, last: true };
   return [
-    pathFromStroke(getStroke(pts, { ...pen, size: 2, start: { taper: 3 }, end: { taper: 7 } })),
-    pathFromStroke(getStroke(hub, { ...pen, size: 1.8, start: { taper: 2 }, end: { taper: 5 } })),
+    pathFromStroke(getStroke(pts, { ...pen, size: 3.2, start: { taper: 3 }, end: { taper: 7 } })),
+    pathFromStroke(getStroke(hub, { ...pen, size: 2.8, start: { taper: 2 }, end: { taper: 5 } })),
   ];
 }

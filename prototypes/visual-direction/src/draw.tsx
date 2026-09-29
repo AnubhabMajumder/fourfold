@@ -1,7 +1,7 @@
 ﻿// PROTOTYPE: decorative, aria-hidden SVG layers. Meaning always lives in real DOM text/semantics.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { StrikeStyle } from './store';
-import { gearDoodle, inkLine, roughCurve, roughLine, roughPolyline, roughRect, seedOf, zigzag, type SketchPath } from './sketch';
+import { gearDoodle, inkLine, roughLine, roughPolyline, roughRect, seedOf, zigzag, type SketchPath } from './sketch';
 
 export function useSize<T extends HTMLElement>() {
   const ref = useRef<T>(null);
@@ -94,7 +94,7 @@ export function StrikeText({ id, text, done, style }: { id: string; text: string
                     seed: seed + i,
                     roughness: 1.6,
                     bowing: 2,
-                    strokeWidth: 1.8,
+                    strokeWidth: 2.6,
                   })}
                 />
               </g>
@@ -234,13 +234,16 @@ export function PlaceIcon({ seed }: { seed: number }) {
   );
 }
 
-/** Hand-drawn ↩ for sending a Task back to the Task List. */
+/**
+ * Sketched mini Task List (a page with three lines) for sending a Task back to the Task List: the partner of the
+ * mini-Matrix PlaceIcon, so the two buttons read as "to the Matrix" and "to the list".
+ */
 export function ReturnIcon({ seed }: { seed: number }) {
   const paths = useMemo(() => {
-    const o = { roughness: 0.9, bowing: 0.6, strokeWidth: 1.6, disableMultiStroke: true };
+    const o = { roughness: 0.8, bowing: 0.5, strokeWidth: 1.4 };
     return [
-      ...roughCurve([[15, 2.5], [15.2, 7.5], [12.5, 11], [8, 11.6], [3.5, 11.2]], { ...o, seed }),
-      ...roughPolyline([[7.6, 7.4], [3.4, 11.2], [7.4, 15]], { ...o, seed: seed + 1 }),
+      ...roughRect(2, 1, 14, 16, { ...o, seed }),
+      ...[5, 9, 13].flatMap((y, i) => roughLine(5, y, i === 2 ? 10 : 13, y, { ...o, seed: seed + 1 + i, disableMultiStroke: true })),
     ];
   }, [seed]);
   return (

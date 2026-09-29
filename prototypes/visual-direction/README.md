@@ -21,7 +21,7 @@ Flip variants with the bottom bar (or ←/→ keys). State (placements, completi
 
 D only, also set from the settings gear:
 
-- `?theme=plain|ivory-navy|ivory-black|noir-ivory|noir-chalk|noir-midnight|noir-redpen` switches the colour scheme: plain, ivory with a navy or black pen, or one of four dark bases still being tried (ivory ink on warm black, chalk on slate, midnight navy, black with a red pen). The doodled gear in the Matrix's bottom-right corner sets it too.
+- `?theme=` switches the colour scheme: `plain`, `ivory-navy`, `ivory-black`, `noir-chalk` (chalk on slate), the ivory ink variations `noir-ivory` (warm black), `noir-ivory-espresso`, `noir-ivory-charcoal`, `noir-ivory-gold` (gold strike), and the noir & blue variations `noir-blue-cobalt` (cobalt strike), `noir-blue-steel` (steel-blue lines and strike), `noir-blue-biro` (everything in blue pen), `noir-blue-black` (blue-black paper, bright blue strike). The doodled gear in the Matrix's bottom-right corner sets it too.
 
 Per the in-Quadrant layout decision (#6): Quadrants are plain ordered lists, Tasks drawn straight, Completed Tasks stay in place. In A–C the placement buttons are a stand-in (append to end of Quadrant).
 

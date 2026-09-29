@@ -92,8 +92,11 @@ export function scribble(x: number, y: number, w: number, h: number, seed: numbe
   return inkPath(pts, Math.max(2, h * 0.11));
 }
 
-/** Round 3's felt-pen /|/|/| sawtooth: uneven teeth, drifting baseline, down strokes that lean. */
-export function sawtooth(x: number, y: number, w: number, h: number, seed: number): string {
+/**
+ * The felt-pen |/|/|/| zigzag: uneven teeth, drifting baseline, down strokes that lean.
+ * It starts the way it ends, with a down stroke, so both ends of the line look alike.
+ */
+export function zigzag(x: number, y: number, w: number, h: number, seed: number): string {
   const r = rng(seed);
   const jit = (n: number) => (r() - 0.5) * n;
   const top = y + h * 0.18;
@@ -101,8 +104,11 @@ export function sawtooth(x: number, y: number, w: number, h: number, seed: numbe
   const drift = jit(h * 0.2); // the whole stroke rises or sinks a little from left to right
   const lift = (cx: number) => ((cx - x) / Math.max(w, 1)) * drift;
   const end = x + w + 3;
-  let cx = x - 3;
-  const corners: number[][] = [[cx, bottom + jit(h * 0.08)]];
+  let cx = x - 1;
+  const corners: number[][] = [
+    [cx + jit(2), top + jit(h * 0.14)],
+    [cx - 1.5 - r() * 2.5, bottom + jit(h * 0.12)],
+  ];
   while (cx < end) {
     cx = Math.min(cx + h * (0.6 + r() * 0.2), end);
     corners.push([cx + jit(2), top + lift(cx) + jit(h * 0.14)]);
@@ -121,10 +127,10 @@ export function sawtooth(x: number, y: number, w: number, h: number, seed: numbe
 }
 
 /**
- * A quick hand crossing-out: a loose zigzag through the middle of the line, both strokes slanted,
+ * Round 4's loose crossing-out: a zigzag through the middle of the line, both strokes slanted,
  * teeth that widen as the hand speeds up, tapering in and out where the pen lands and lifts.
  */
-export function zigzag(x: number, y: number, w: number, h: number, seed: number): string {
+export function looseZigzag(x: number, y: number, w: number, h: number, seed: number): string {
   const r = rng(seed);
   const jit = (n: number) => (r() - 0.5) * n;
   const mid = y + h * 0.56;
@@ -154,25 +160,4 @@ export function zigzag(x: number, y: number, w: number, h: number, seed: number)
   // The pen lifts off the last stroke, so it tapers out instead of ending blunt.
   const outline = getStroke(pts, { size: Math.max(2.8, h * 0.13), thinning: 0.2, smoothing: 0.3, streamline: 0.2, simulatePressure: true, last: true, start: { taper: h * 0.3 }, end: { taper: h * 0.9 } });
   return pathFromStroke(outline);
-}
-
-/** A big felt-pen tick sized to a w x h box, for a Quadrant whose Tasks are all Completed. */
-export function bigTick(w: number, h: number, seed: number): string {
-  const r = rng(seed);
-  const jit = (n: number) => (r() - 0.5) * n;
-  const s = Math.min(w, h) * 0.55;
-  const cx = w / 2;
-  const cy = h / 2;
-  const a = [cx - s * 0.48, cy - s * 0.02];
-  const b = [cx - s * 0.12 + jit(s * 0.04), cy + s * 0.36];
-  const c = [cx + s * 0.52, cy - s * 0.46];
-  const pts: number[][] = [];
-  for (const [p, q] of [[a, b], [b, c]]) {
-    for (let i = 0; i < 6; i++) {
-      const t = i / 6;
-      pts.push([p[0] + (q[0] - p[0]) * t + jit(s * 0.015), p[1] + (q[1] - p[1]) * t + jit(s * 0.015)]);
-    }
-  }
-  pts.push(c);
-  return pathFromStroke(getStroke(pts, { size: Math.max(6, s * 0.09), thinning: 0.25, smoothing: 0.5, streamline: 0.3, simulatePressure: true, last: true }));
 }

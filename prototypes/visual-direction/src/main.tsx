@@ -1,5 +1,5 @@
 // PROTOTYPE for #8 "Visual direction": three variants of how far the hand-drawn feel extends,
-// switchable via ?variant=A|B|C|D, plus ?strike=zigzag|rough|ink|css for the Completed Task strike-through.
+// switchable via ?variant=A|B|C|D, plus ?strike=zigzag|loose|rough|ink|css for the Completed Task strike-through.
 import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';

@@ -1,29 +1,28 @@
 // PROTOTYPE variant D: the user's picks from A/B/C (#8 feedback).
 // A's partitioning (header / Task List / Matrix, input and Add apart), B's axis headers,
-// C's sketched look everywhere, drag-and-drop placement with a place menu or a row of quadrant buttons as the fallback.
-// Round 4: colour schemes and prototype knobs live behind the settings gear (bottom right), mirrored in the URL.
+// C's sketched look everywhere, drag-and-drop placement with a place icon that opens four small Quadrant buttons as the fallback.
+// Colour schemes live behind the sketched settings gear in the Matrix's bottom-right corner, mirrored in the URL.
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { DATE } from '../bits';
-import { DeleteIcon, Dividers, GearIcon, QuadIcon, QuadrantDone, RoughBox, RoughCheck, StrikeText, type DoneStyle } from '../draw';
+import { DeleteIcon, Dividers, GearIcon, PlaceIcon, QuadIcon, QuadrantDone, RoughBox, RoughCheck, StrikeText } from '../draw';
 import { seedOf } from '../sketch';
 import { QUADRANTS, type QuadrantIndex, type Store, type Task, type VariantProps } from '../store';
 
 export const name = 'Your picks';
 
+// Two luxury bases, each tried with gold and with other accents.
 const THEMES = {
   plain: { label: 'Plain', group: 'Plain' },
-  terracotta: { label: 'Terracotta', group: 'Warm' },
-  apricot: { label: 'Apricot', group: 'Warm' },
-  honey: { label: 'Honey', group: 'Warm' },
-  ivory: { label: 'Ivory & gold', group: 'Luxury' },
-  noir: { label: 'Noir & gold', group: 'Luxury' },
-  emerald: { label: 'Emerald', group: 'Luxury' },
-  oxblood: { label: 'Oxblood', group: 'Luxury' },
+  ivory: { label: 'gold', group: 'Ivory' },
+  'ivory-navy': { label: 'navy', group: 'Ivory' },
+  'ivory-forest': { label: 'forest', group: 'Ivory' },
+  'ivory-burgundy': { label: 'burgundy', group: 'Ivory' },
+  noir: { label: 'gold', group: 'Noir' },
+  'noir-silver': { label: 'silver', group: 'Noir' },
+  'noir-rose': { label: 'rose', group: 'Noir' },
+  'noir-sage': { label: 'sage', group: 'Noir' },
 } as const;
 type Theme = keyof typeof THEMES;
-type Placement = 'menu' | 'rows';
-const PLACEMENTS: Record<Placement, string> = { menu: 'place menu', rows: 'two lines' };
-const DONE_STYLES: Record<DoneStyle, string> = { tick: 'big tick', hatch: 'hatched', none: 'off' };
 
 /** A setting that lives in a URL search param, so a refresh or a shared link keeps it. */
 function useUrlParam<T extends string>(key: string, options: Record<T, unknown>, fallback: T) {
@@ -129,96 +128,57 @@ function DeleteButton({ store, t }: { store: Store; t: Task }) {
   );
 }
 
-/** "place" button that opens a mini Matrix: pick the Quadrant where the Task goes (appended to its end). */
-function PlaceMenu({ store, t }: { store: Store; t: Task }) {
-  const [at, setAt] = useState<{ top: number; left: number } | null>(null);
-  const btn = useRef<HTMLButtonElement>(null);
-  const pop = useRef<HTMLDivElement>(null);
-  const close = () => setAt(null);
-  useDismiss(at !== null, close, btn, pop);
+/** Sketched mini-Matrix icon; clicking it swaps in four small Quadrant buttons (appends the Task to that Quadrant). */
+function PlacePicker({ store, t }: { store: Store; t: Task }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLSpanElement>(null);
+  useDismiss(open, () => setOpen(false), box);
   useEffect(() => {
-    if (at) pop.current?.querySelector('button')?.focus();
-  }, [at]);
-  const open = () => {
-    const r = btn.current!.getBoundingClientRect();
-    const w = 250;
-    setAt({ top: r.bottom + 6, left: Math.max(8, Math.min(r.right - w + 20, innerWidth - w - 8)) });
-  };
-  return (
-    <>
-      <RoughBox seed={seedOf(t.id) + 3} className="vd-placebtn">
-        <button ref={btn} onClick={() => (at ? close() : open())} aria-expanded={at !== null} aria-haspopup="menu" aria-label={`Place ${t.text}`}>
-          place
+    if (open) box.current?.querySelector('button')?.focus();
+  }, [open]);
+  if (!open)
+    return (
+      <span ref={box} className="vd-actions">
+        <DeleteButton store={store} t={t} />
+        <button className="vd-placebtn" onClick={() => setOpen(true)} aria-expanded={false} title="Place in the Matrix" aria-label={`Place ${t.text}`}>
+          <PlaceIcon seed={seedOf(t.id) + 3} />
         </button>
-      </RoughBox>
-      {at && (
-        <div ref={pop} className="vd-pop vd-placepop" style={at} role="menu" aria-label={`Place ${t.text} into`}>
-          <span />
-          <span className="vd-pop-axis">urgent</span>
-          <span className="vd-pop-axis">not urgent</span>
-          <span className="vd-pop-axis vd-pop-axis-v">important</span>
-          <div className="vd-pop-grid">
-            <Dividers kind="ink" seed={seedOf(t.id) + 7} size={2.6} m={2} />
-            {QUADRANTS.map((q, i) => (
-              <button
-                key={i}
-                role="menuitem"
-                aria-label={q.label}
-                title={q.label}
-                onClick={() => {
-                  store.place(t.id, i as QuadrantIndex);
-                  close();
-                }}
-              >
-                +
-              </button>
-            ))}
-          </div>
-          <span className="vd-pop-axis vd-pop-axis-v">not important</span>
-        </div>
-      )}
-    </>
+      </span>
+    );
+  return (
+    <span ref={box} className="vd-actions place-buttons" role="group" aria-label={`Place ${t.text} into`}>
+      {QUADRANTS.map((q, i) => (
+        <button key={i} title={q.label} aria-label={q.label} onClick={() => store.place(t.id, i as QuadrantIndex)}>
+          <QuadIcon q={i} seed={seedOf(t.id) + i} />
+        </button>
+      ))}
+    </span>
   );
 }
 
-function Settings({
-  theme,
-  setTheme,
-  placement,
-  setPlacement,
-  done,
-  setDone,
-}: {
-  theme: Theme;
-  setTheme: (t: Theme) => void;
-  placement: Placement;
-  setPlacement: (p: Placement) => void;
-  done: DoneStyle;
-  setDone: (d: DoneStyle) => void;
-}) {
-  const [open, setOpen] = useState(false);
+/** Sketched gear sitting in the Matrix's bottom-right corner; opens the colour schemes above it. */
+function Settings({ theme, setTheme }: { theme: Theme; setTheme: (t: Theme) => void }) {
+  const [at, setAt] = useState<{ right: number; bottom: number } | null>(null);
   const btn = useRef<HTMLButtonElement>(null);
   const pop = useRef<HTMLDivElement>(null);
-  useDismiss(open, () => setOpen(false), btn, pop);
-  const groups = ['Plain', 'Warm', 'Luxury'] as const;
-  const choice = <T extends string>(options: Record<T, string>, value: T, set: (v: T) => void) => (
-    <div className="vd-choice">
-      {(Object.keys(options) as T[]).map((k) => (
-        <button key={k} className={k === value ? 'on' : ''} aria-pressed={k === value} onClick={() => set(k)}>
-          {options[k]}
-        </button>
-      ))}
-    </div>
-  );
+  useDismiss(at !== null, () => setAt(null), btn, pop);
+  const toggle = () => {
+    if (at) return setAt(null);
+    const r = btn.current!.getBoundingClientRect();
+    setAt({ right: Math.max(8, innerWidth - r.right), bottom: innerHeight - r.top + 6 });
+  };
+  const groups = ['Plain', 'Ivory', 'Noir'] as const;
   return (
     <>
-      {open && (
-        <div ref={pop} className="vd-pop vd-settings" role="dialog" aria-label="Settings">
-          <h2>Settings</h2>
-          <h3>Colours</h3>
+      <button ref={btn} className="vd-gear" onClick={toggle} aria-expanded={at !== null} aria-label="Settings" title="Settings">
+        <GearIcon seed={41} />
+      </button>
+      {at && (
+        <div ref={pop} className="vd-pop vd-settings" style={at} role="dialog" aria-label="Settings">
+          <h2>Colours</h2>
           {groups.map((g) => (
             <div key={g} className="vd-swatches">
-              <span className="vd-group">{g.toLowerCase()}</span>
+              {g !== 'Plain' && <span className="vd-group">{g.toLowerCase()} &amp;</span>}
               {(Object.keys(THEMES) as Theme[])
                 .filter((k) => THEMES[k].group === g)
                 .map((k) => (
@@ -232,18 +192,8 @@ function Settings({
                 ))}
             </div>
           ))}
-          <div className="vd-knobs">
-            <h3>Prototype knobs</h3>
-            <label>Task List placement</label>
-            {choice(PLACEMENTS, placement, setPlacement)}
-            <label>Quadrant all done</label>
-            {choice(DONE_STYLES, done, setDone)}
-          </div>
         </div>
       )}
-      <button ref={btn} className="vd-gear" onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Settings" title="Settings">
-        <GearIcon seed={41} />
-      </button>
     </>
   );
 }
@@ -252,8 +202,6 @@ export function Variant({ store, strike }: VariantProps) {
   const { drag, start } = useDragPlace(store);
   const [text, setText] = useState('');
   const [theme, setTheme] = useUrlParam<Theme>('theme', THEMES, 'plain');
-  const [placement, setPlacement] = useUrlParam<Placement>('place', PLACEMENTS, 'menu');
-  const [done, setDone] = useUrlParam<DoneStyle>('done', DONE_STYLES, 'tick');
   const draggable = (t: Task) => ({
     'data-id': t.id,
     className: drag?.id === t.id ? 'dragging' : undefined,
@@ -275,7 +223,7 @@ export function Variant({ store, strike }: VariantProps) {
         </nav>
       </header>
       <div className="vd-body">
-        <aside className={`vd-page vd-list vd-list-${placement}${drag?.zone === 'list' ? ' over' : ''}`} data-drop="list" aria-labelledby="vd-list">
+        <aside className={`vd-page vd-list${drag?.zone === 'list' ? ' over' : ''}`} data-drop="list" aria-labelledby="vd-list">
           <h2 id="vd-list">Task List</h2>
           <form
             className="vd-add"
@@ -296,21 +244,7 @@ export function Variant({ store, strike }: VariantProps) {
             {withDropLine(store.list, 'list', drag, (t) => (
               <li key={t.id} {...draggable(t)}>
                 <span className="vd-text">{t.text}</span>
-                {placement === 'menu' ? (
-                  <span className="vd-actions">
-                    <DeleteButton store={store} t={t} />
-                    <PlaceMenu store={store} t={t} />
-                  </span>
-                ) : (
-                  <span className="place-buttons">
-                    {QUADRANTS.map((q, i) => (
-                      <button key={i} title={`Place into ${q.label}`} aria-label={`Place into ${q.label}`} onClick={() => store.place(t.id, i as QuadrantIndex)}>
-                        <QuadIcon q={i} seed={seedOf(t.id) + i} />
-                      </button>
-                    ))}
-                    <DeleteButton store={store} t={t} />
-                  </span>
-                )}
+                <PlacePicker store={store} t={t} />
               </li>
             ))}
           </ul>
@@ -329,11 +263,11 @@ export function Variant({ store, strike }: VariantProps) {
             <Dividers kind="ink" seed={31} />
             {QUADRANTS.map((q, i) => {
               const tasks = store.inQuadrant(i as QuadrantIndex);
-              const complete = done !== 'none' && tasks.length > 0 && tasks.every((t) => t.done);
+              const complete = tasks.length > 0 && tasks.every((t) => t.done);
               return (
                 <section key={i} className={`vd-q${drag?.zone === i ? ' over' : ''}${complete ? ' complete' : ''}`} data-drop={i} aria-label={complete ? `${q.label}, all done` : q.label}>
-                  {complete && <QuadrantDone kind={done} seed={51 + i} />}
-                  <ul>
+                  {complete && <QuadrantDone seed={51 + i} />}
+                  <ul className="vd-q-list">
                     {withDropLine(tasks, i as QuadrantIndex, drag, (t) => (
                       <li key={t.id} {...draggable(t)}>
                         <label className="vd-check">
@@ -352,10 +286,10 @@ export function Variant({ store, strike }: VariantProps) {
                 </section>
               );
             })}
+            <Settings theme={theme} setTheme={setTheme} />
           </main>
         </section>
       </div>
-      <Settings theme={theme} setTheme={setTheme} placement={placement} setPlacement={setPlacement} done={done} setDone={setDone} />
       {drag && (
         <div className="vd-ghost" style={{ left: drag.x - drag.dx, top: drag.y - drag.dy, width: Math.min(drag.w, 360) }} aria-hidden="true">
           {drag.text}

@@ -1,7 +1,7 @@
 ﻿// PROTOTYPE: decorative, aria-hidden SVG layers. Meaning always lives in real DOM text/semantics.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { StrikeStyle } from './store';
-import { bigTick, inkLine, roughCircle, roughLine, roughPolyline, roughRect, sawtooth, scribble, seedOf, zigzag, type SketchPath } from './sketch';
+import { inkLine, roughCircle, roughLine, roughPolyline, roughRect, looseZigzag, scribble, seedOf, zigzag, type SketchPath } from './sketch';
 
 export function useSize<T extends HTMLElement>() {
   const ref = useRef<T>(null);
@@ -101,7 +101,7 @@ export function StrikeText({ id, text, done, style }: { id: string; text: string
             ) : (
               <path
                 key={i}
-                d={(style === 'zigzag' ? zigzag : style === 'sawtooth' ? sawtooth : scribble)(l.x, l.y, l.w, l.h, seed + i)}
+                d={(style === 'zigzag' ? zigzag : style === 'loose' ? looseZigzag : scribble)(l.x, l.y, l.w, l.h, seed + i)}
                 fill="currentColor"
                 className={animate ? 'wipe-on' : undefined}
                 style={{ '--d': `${i * 0.3}s` } as CSSProperties}
@@ -221,40 +221,55 @@ export function QuadIcon({ q, seed }: { q: number; seed: number }) {
   );
 }
 
-/** Hand-drawn gear for the settings button. */
-export function GearIcon({ seed }: { seed: number }) {
+/** Sketched 2x2 Matrix with nothing filled in: the Task List's "place" button. */
+export function PlaceIcon({ seed }: { seed: number }) {
   const paths = useMemo(() => {
-    const o = { roughness: 0.8, bowing: 0.5, strokeWidth: 1.6, disableMultiStroke: true };
-    const teeth = Array.from({ length: 8 }, (_, i) => {
-      const a = (i / 8) * Math.PI * 2;
-      return roughLine(12 + Math.cos(a) * 6.5, 12 + Math.sin(a) * 6.5, 12 + Math.cos(a) * 10, 12 + Math.sin(a) * 10, { ...o, strokeWidth: 2.6, seed: seed + i });
-    });
-    return [...roughCircle(12, 12, 13, { ...o, seed }), ...roughCircle(12, 12, 5, { ...o, seed: seed + 9 }), ...teeth.flat()];
+    const o = { roughness: 0.8, bowing: 0.5, strokeWidth: 1.4 };
+    return [...roughRect(1, 1, 16, 16, { ...o, seed }), ...roughLine(9, 2, 9, 16, { ...o, seed: seed + 1 }), ...roughLine(2, 9, 16, 9, { ...o, seed: seed + 2 })];
   }, [seed]);
   return (
-    <svg className="gear-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <svg className="quad-icon" viewBox="0 0 18 18" aria-hidden="true">
       <Paths paths={paths} />
     </svg>
   );
 }
 
-export type DoneStyle = 'tick' | 'hatch' | 'none';
+/** Pencil-sketched gear: a toothed outline and a hole, drawn twice over like a doodle. */
+export function GearIcon({ seed }: { seed: number }) {
+  const paths = useMemo(() => {
+    const pts: [number, number][] = [];
+    const at = (a: number, r: number): [number, number] => [16 + Math.cos(a) * r, 16 + Math.sin(a) * r];
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      pts.push(at(a - 0.27, 9.5), at(a - 0.15, 13.5), at(a + 0.15, 13.5), at(a + 0.27, 9.5));
+    }
+    pts.push(pts[0]);
+    const o = { roughness: 0.9, bowing: 0.8, strokeWidth: 1.4 };
+    return [...roughPolyline(pts, { ...o, seed }), ...roughCircle(16, 16, 8, { ...o, seed: seed + 1 })];
+  }, [seed]);
+  return (
+    <svg className="gear-icon" viewBox="0 0 32 32" aria-hidden="true">
+      <Paths paths={paths} />
+    </svg>
+  );
+}
 
-/** Marks a Quadrant whose Tasks are all Completed. Fills its positioned parent, sits behind the Tasks. */
-export function QuadrantDone({ kind, seed }: { kind: DoneStyle; seed: number }) {
+/**
+ * Hatches a Quadrant whose Tasks are all Completed. Fills its positioned parent (the Quadrant's frame, not its
+ * scrolling list), so the whole visible Quadrant stays hatched however far it is scrolled.
+ */
+export function QuadrantDone({ seed }: { seed: number }) {
   const [ref, { w, h }] = useSize<HTMLDivElement>();
-  // Animate only when the last Task gets completed on screen, not when a finished Quadrant is first shown.
+  // Fade in only when the last Task gets completed on screen, not when a finished Quadrant is first shown.
   const [animate] = useState(() => performance.now() > 1500);
   const content = useMemo(() => {
     if (!w || !h) return null;
-    if (kind === 'tick') return <path d={bigTick(w, h, seed)} fill="currentColor" className={animate ? 'wipe-on slow' : undefined} />;
     const fill = roughRect(6, 6, w - 12, h - 12, { seed, roughness: 1.4, stroke: 'none', fill: 'currentColor', fillStyle: 'hachure', hachureAngle: -41, hachureGap: 16, fillWeight: 1.4 });
     return <Paths paths={fill.filter((p) => p.stroke !== 'none')} />;
-  }, [w, h, kind, seed, animate]);
+  }, [w, h, seed]);
   return (
-    <div ref={ref} className={`quad-done quad-done-${kind}${animate ? ' fade-in' : ''}`} aria-hidden="true">
+    <div ref={ref} className={`quad-done${animate ? ' fade-in' : ''}`} aria-hidden="true">
       <svg width={w} height={h}>{content}</svg>
-      <span className="quad-done-note">all done</span>
     </div>
   );
 }

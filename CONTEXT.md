@@ -21,7 +21,7 @@ The newest Matrix, where new Placements go: normally today's, but from the eveni
 _Avoid_: Active matrix, today's session
 
 **Frozen Matrix**:
-A Matrix that can no longer be changed, because its editing window has ended (a few hours into the following date). It remains viewable as a record of that date. Until it freezes, a Matrix stays editable even when it is no longer current.
+A Matrix that can no longer be changed, because its editing window has ended (a few hours into the following date). No Task can be placed into it, deleted from it, returned to the Task List from it, or moved within or out of it. It remains viewable as a record of that date, and looks exactly like an editable Matrix: nothing marks it as frozen except that it refuses those changes. Until it freezes, a Matrix stays editable even when it is no longer current.
 _Avoid_: Archived matrix, closed matrix, locked session
 
 **Quadrant**:

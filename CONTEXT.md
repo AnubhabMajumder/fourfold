@@ -13,15 +13,11 @@ The single, ongoing list of Tasks the user has written but not yet placed. Every
 _Avoid_: Inbox, backlog, today's list
 
 **Matrix**:
-The four-quadrant workspace where a user prioritizes the Tasks for one date. A Matrix exists only while it holds at least one placed Task: it comes into being with the first Placement and disappears if it is emptied before it freezes, so unused dates have none. Unfinished Tasks stay in their date's Matrix and are not carried forward.
-_Avoid_: Board, grid, session
-
-**Current Matrix**:
-The newest Matrix, where new Placements go: normally today's, but from the evening the user can start tomorrow's early, which then becomes current. An earlier Matrix that is no longer current stays editable until it freezes.
-_Avoid_: Active matrix, today's session
+The four-quadrant workspace where a user prioritizes the Tasks for one date. A Matrix exists only while it holds at least one placed Task: it comes into being with the first Placement and disappears if it is emptied before it freezes, so unused dates have none. Unfinished Tasks stay in their date's Matrix and are not carried forward. Tasks can be placed into today's Matrix, into any earlier Matrix that has not yet frozen, and, from the evening onwards, into tomorrow's. No Matrix is marked as the current one.
+_Avoid_: Board, grid, session, current matrix, active matrix
 
 **Frozen Matrix**:
-A Matrix that can no longer be changed, because its editing window has ended (a few hours into the following date). No Task can be placed into it, deleted from it, returned to the Task List from it, or moved within or out of it. It remains viewable as a record of that date, and looks exactly like an editable Matrix: nothing marks it as frozen except that it refuses those changes. Until it freezes, a Matrix stays editable even when it is no longer current.
+A Matrix that can no longer be changed, because its editing window has ended (a few hours into the following date). No Task can be placed into it, deleted from it, returned to the Task List from it, or moved within or out of it. It remains viewable as a record of that date, and looks exactly like an editable Matrix: nothing marks it as frozen except that it refuses those changes. Until it freezes, a Matrix stays editable even after its date has passed.
 _Avoid_: Archived matrix, closed matrix, locked session
 
 **Quadrant**:
@@ -29,7 +25,7 @@ One of the four regions of the Matrix: Important + Urgent, Important + Not Urgen
 _Avoid_: Box, column, bucket
 
 **Placement**:
-The user's act of putting a Task into a Quadrant; a Task in a Quadrant is **placed**. Prioritization is always the user's judgment, never the app's. The user also chooses where in the Quadrant's list the Task goes, and can later move it to another position. A Task is only ever placed from the Task List: it cannot be written directly into a Quadrant, nor moved directly from one Matrix to another. Until its Matrix freezes, an unfinished placed Task can be returned to the Task List, leaving no trace in that Matrix.
+The user's act of putting a Task into a Quadrant; a Task in a Quadrant is **placed**. A Task can be placed into any Matrix that is not frozen. Prioritization is always the user's judgment, never the app's. The user also chooses where in the Quadrant's list the Task goes, and can later move it to another position. A Task is only ever placed from the Task List: it cannot be written directly into a Quadrant, nor moved directly from one Matrix to another. Until its Matrix freezes, an unfinished placed Task can be returned to the Task List, leaving no trace in that Matrix.
 _Avoid_: Categorize, sort, classify
 
 **Completed Task**:

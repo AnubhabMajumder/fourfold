@@ -9,7 +9,7 @@ A single thing the user intends to do, written in their own words.
 _Avoid_: Todo, item, card
 
 **Task List**:
-The single, ongoing list of Tasks the user has written but not yet placed. Every Task is written here first; it belongs to no date, and an unplaced Task waits there across days until the user places it into a Matrix. A Task in the Task List can be edited or deleted, but not completed.
+The single, ongoing list of Tasks the user has written but not yet placed. Every Task is written here first; it belongs to no date, and an unplaced Task waits there across days until the user places it into a Matrix. Its order is the user's to set: a newly written Task goes to the top, and the user can move Tasks up or down. A Task in the Task List can be edited or deleted, but not completed.
 _Avoid_: Inbox, backlog, today's list
 
 **Matrix**:

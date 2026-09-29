@@ -10,20 +10,14 @@ import { QUADRANTS, type QuadrantIndex, type Store, type Task, type VariantProps
 
 export const name = 'Your picks';
 
-// Plain and the two ivory keepers, chalkboard, and round 7's dark variations: ivory ink and noir & blue.
+// The keepers: plain, ivory with navy or black, chalkboard, and noir with a cobalt strike or steel lines.
 const THEMES = {
   plain: { label: 'Plain', group: 'Plain' },
   'ivory-navy': { label: 'navy', group: 'Ivory' },
   'ivory-black': { label: 'black', group: 'Ivory' },
   'noir-chalk': { label: 'chalkboard', group: 'Dark' },
-  'noir-ivory': { label: 'warm black', group: 'IvoryInk' },
-  'noir-ivory-espresso': { label: 'espresso', group: 'IvoryInk' },
-  'noir-ivory-charcoal': { label: 'charcoal', group: 'IvoryInk' },
-  'noir-ivory-gold': { label: 'gold strike', group: 'IvoryInk' },
   'noir-blue-cobalt': { label: 'cobalt strike', group: 'NoirBlue' },
   'noir-blue-steel': { label: 'steel lines', group: 'NoirBlue' },
-  'noir-blue-biro': { label: 'blue biro', group: 'NoirBlue' },
-  'noir-blue-black': { label: 'blue-black', group: 'NoirBlue' },
 } as const;
 type Theme = keyof typeof THEMES;
 
@@ -170,7 +164,7 @@ function Settings({ theme, setTheme }: { theme: Theme; setTheme: (t: Theme) => v
     const r = btn.current!.getBoundingClientRect();
     setAt({ right: Math.max(8, innerWidth - r.right), bottom: innerHeight - r.top + 6 });
   };
-  const groups = { Plain: '', Ivory: 'ivory &', Dark: 'dark', IvoryInk: 'ivory ink on', NoirBlue: 'noir &' };
+  const groups = { Plain: '', Ivory: 'ivory &', Dark: 'dark', NoirBlue: 'noir &' };
   return (
     <>
       <button ref={btn} className="vd-gear" onClick={toggle} aria-expanded={at !== null} aria-label="Settings" title="Settings">

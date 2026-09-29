@@ -146,18 +146,10 @@ s { opacity: 0.6; }
 .vd[data-theme^=noir], .vd-swatch[data-theme^=noir] { --shadow: rgba(0,0,0,.6); --rule: var(--line); }
 /* chalk on a slate blackboard (the round 6 keeper) */
 .vd[data-theme=noir-chalk], .vd-swatch[data-theme=noir-chalk] { --bg: #232b2a; --panel: #283230; --line: #3a4644; --line-soft: #313c3a; --ink: #eceee6; --muted: #a8b4ad; --faint: #6f7c77; --divider: #e3e6dc; --strike: #f4f1e2; --soft: #33403e; --danger: #f0a08a; }
-/* Ivory ink: the ivory theme turned over, on four different blacks */
-.vd[data-theme^=noir-ivory], .vd-swatch[data-theme^=noir-ivory] { --ink: #efe7d4; --muted: #a59b85; --divider: #e6dcc6; --strike: #efe7d4; --danger: #e07a5f; }
-.vd[data-theme=noir-ivory], .vd-swatch[data-theme=noir-ivory] { --bg: #151412; --panel: #1c1b18; --line: #302d27; --line-soft: #262420; --faint: #6e6758; --soft: #2a2723; }
-.vd[data-theme=noir-ivory-espresso], .vd-swatch[data-theme=noir-ivory-espresso] { --bg: #1d1712; --panel: #241d17; --line: #3a3027; --line-soft: #2e261f; --faint: #75685a; --soft: #30281f; --muted: #ad9c86; }
-.vd[data-theme=noir-ivory-charcoal], .vd-swatch[data-theme=noir-ivory-charcoal] { --bg: #1a1b1d; --panel: #212225; --line: #35363a; --line-soft: #2a2b2e; --faint: #6c6a66; --soft: #2d2e31; --muted: #a39c8f; }
-.vd[data-theme=noir-ivory-gold], .vd-swatch[data-theme=noir-ivory-gold] { --bg: #151412; --panel: #1c1b18; --line: #302d27; --line-soft: #262420; --faint: #6e6758; --soft: #2a2723; --strike: #d4b26a; --muted: #b8a47a; }
-/* Noir & blue: black paper, with the blue going into the pen, the lines, or the paper itself */
+/* Noir & blue: black paper, white ink, with the blue in the strike (cobalt) or in the lines and strike (steel) */
 .vd[data-theme^=noir-blue], .vd-swatch[data-theme^=noir-blue] { --bg: #121212; --panel: #191919; --line: #2d2d2d; --line-soft: #232323; --ink: #ececec; --muted: #9c9c9c; --faint: #636363; --divider: #e6e6e6; --soft: #262626; --danger: #e8836e; }
 .vd[data-theme=noir-blue-cobalt], .vd-swatch[data-theme=noir-blue-cobalt] { --strike: #5b8def; }
 .vd[data-theme=noir-blue-steel], .vd-swatch[data-theme=noir-blue-steel] { --divider: #9fb3cc; --strike: #9fb3cc; --muted: #95a3b5; }
-.vd[data-theme=noir-blue-biro], .vd-swatch[data-theme=noir-blue-biro] { --ink: #d4e1f7; --muted: #8ea4c8; --faint: #56627a; --divider: #7fa2e0; --strike: #7fa2e0; }
-.vd[data-theme=noir-blue-black], .vd-swatch[data-theme=noir-blue-black] { --bg: #0d1117; --panel: #131a23; --line: #26303d; --line-soft: #1c242f; --ink: #e6edf3; --muted: #8d99a8; --faint: #525f6e; --divider: #dbe3ec; --strike: #58a6ff; --soft: #1f2833; }
 
 .vd button { border: 0; background: none; }
 .vd input { color: inherit; }
@@ -223,8 +215,7 @@ body.vd-dragging, body.vd-dragging * { cursor: grabbing !important; }
 .vd-pop { position: fixed; z-index: 950; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 14px 34px var(--shadow); cursor: default; }
 .vd .vd-gear { position: absolute; right: 2px; bottom: 0; z-index: 5; display: flex; padding: 4px; color: var(--divider); }
 .vd .vd-gear:hover, .vd .vd-gear[aria-expanded=true] { color: var(--ink); }
-.gear-icon { width: 38px; height: 38px; overflow: visible; transition: transform .4s; }
-.vd-gear:hover .gear-icon { transform: rotate(45deg); }
+.gear-icon { width: 38px; height: 38px; overflow: visible; }
 .vd-settings { width: 370px; max-height: calc(100vh - 100px); overflow: auto; padding: 14px 18px 16px; }
 .vd-settings h2 { font: 700 28px/1 Caveat, cursive; margin: 0 0 8px; }
 .vd-swatches { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }

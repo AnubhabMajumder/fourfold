@@ -94,7 +94,7 @@ export function StrikeText({ id, text, done, style }: { id: string; text: string
                     seed: seed + i,
                     roughness: 1.6,
                     bowing: 2,
-                    strokeWidth: 2.6,
+                    strokeWidth: 3.4,
                   })}
                 />
               </g>

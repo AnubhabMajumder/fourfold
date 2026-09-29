@@ -1,7 +1,7 @@
 ﻿// PROTOTYPE: decorative, aria-hidden SVG layers. Meaning always lives in real DOM text/semantics.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { StrikeStyle } from './store';
-import { inkLine, roughCircle, roughLine, roughPolyline, roughRect, looseZigzag, scribble, seedOf, zigzag, type SketchPath } from './sketch';
+import { gearDoodle, inkLine, roughCurve, roughLine, roughPolyline, roughRect, seedOf, zigzag, type SketchPath } from './sketch';
 
 export function useSize<T extends HTMLElement>() {
   const ref = useRef<T>(null);
@@ -39,7 +39,7 @@ function Paths({ paths, className }: { paths: SketchPath[]; className?: string }
 
 type Line = { x: number; y: number; w: number; h: number };
 
-/** Task text that gets a hand-drawn strike-through (or plain CSS one) when completed. */
+/** Task text that gets a hand-drawn strike-through when completed. */
 export function StrikeText({ id, text, done, style }: { id: string; text: string; done: boolean; style: StrikeStyle }) {
   const wrapRef = useRef<HTMLSpanElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
@@ -52,7 +52,7 @@ export function StrikeText({ id, text, done, style }: { id: string; text: string
   const animate = done && !doneOnMount.current;
 
   useLayoutEffect(() => {
-    if (!done || style === 'css') return;
+    if (!done) return;
     const measure = () => {
       const range = document.createRange();
       range.selectNodeContents(textRef.current!);
@@ -82,8 +82,8 @@ export function StrikeText({ id, text, done, style }: { id: string; text: string
   const inner = <span ref={textRef}>{text}</span>;
   return (
     <span ref={wrapRef} className="strike-wrap">
-      {done ? <s className={style === 'css' ? 'strike-css' : 'strike-none'}>{inner}</s> : inner}
-      {done && style !== 'css' && (
+      {done ? <s className="strike-none">{inner}</s> : inner}
+      {done && (
         <svg className="strike-svg" aria-hidden="true">
           {lines.map((l, i) =>
             style === 'rough' ? (
@@ -101,7 +101,7 @@ export function StrikeText({ id, text, done, style }: { id: string; text: string
             ) : (
               <path
                 key={i}
-                d={(style === 'zigzag' ? zigzag : style === 'loose' ? looseZigzag : scribble)(l.x, l.y, l.w, l.h, seed + i)}
+                d={zigzag(l.x, l.y, l.w, l.h, seed + i)}
                 fill="currentColor"
                 className={animate ? 'wipe-on' : undefined}
                 style={{ '--d': `${i * 0.3}s` } as CSSProperties}
@@ -234,22 +234,30 @@ export function PlaceIcon({ seed }: { seed: number }) {
   );
 }
 
-/** Pencil-sketched gear: a toothed outline and a hole, drawn twice over like a doodle. */
-export function GearIcon({ seed }: { seed: number }) {
+/** Hand-drawn ↩ for sending a Task back to the Task List. */
+export function ReturnIcon({ seed }: { seed: number }) {
   const paths = useMemo(() => {
-    const pts: [number, number][] = [];
-    const at = (a: number, r: number): [number, number] => [16 + Math.cos(a) * r, 16 + Math.sin(a) * r];
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      pts.push(at(a - 0.27, 9.5), at(a - 0.15, 13.5), at(a + 0.15, 13.5), at(a + 0.27, 9.5));
-    }
-    pts.push(pts[0]);
-    const o = { roughness: 0.9, bowing: 0.8, strokeWidth: 1.4 };
-    return [...roughPolyline(pts, { ...o, seed }), ...roughCircle(16, 16, 8, { ...o, seed: seed + 1 })];
+    const o = { roughness: 0.9, bowing: 0.6, strokeWidth: 1.6, disableMultiStroke: true };
+    return [
+      ...roughCurve([[15, 2.5], [15.2, 7.5], [12.5, 11], [8, 11.6], [3.5, 11.2]], { ...o, seed }),
+      ...roughPolyline([[7.6, 7.4], [3.4, 11.2], [7.4, 15]], { ...o, seed: seed + 1 }),
+    ];
   }, [seed]);
   return (
-    <svg className="gear-icon" viewBox="0 0 32 32" aria-hidden="true">
+    <svg className="quad-icon" viewBox="0 0 18 18" aria-hidden="true">
       <Paths paths={paths} />
+    </svg>
+  );
+}
+
+/** A gear doodled in felt pen, in the same hand as the Matrix lines and the strike. */
+export function GearIcon({ seed }: { seed: number }) {
+  const ds = useMemo(() => gearDoodle(seed), [seed]);
+  return (
+    <svg className="gear-icon" viewBox="0 0 32 32" aria-hidden="true">
+      {ds.map((d, i) => (
+        <path key={i} d={d} fill="currentColor" />
+      ))}
     </svg>
   );
 }

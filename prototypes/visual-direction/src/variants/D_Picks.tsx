@@ -4,23 +4,21 @@
 // Colour schemes live behind the sketched settings gear in the Matrix's bottom-right corner, mirrored in the URL.
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { DATE } from '../bits';
-import { DeleteIcon, Dividers, GearIcon, PlaceIcon, QuadIcon, QuadrantDone, RoughBox, RoughCheck, StrikeText } from '../draw';
+import { DeleteIcon, Dividers, GearIcon, PlaceIcon, QuadIcon, QuadrantDone, ReturnIcon, RoughBox, RoughCheck, StrikeText } from '../draw';
 import { seedOf } from '../sketch';
 import { QUADRANTS, type QuadrantIndex, type Store, type Task, type VariantProps } from '../store';
 
 export const name = 'Your picks';
 
-// Two luxury bases, each tried with gold and with other accents.
+// Plain and the two ivory keepers; the dark ones are still being iterated on (round 6: new bases, not just new accents).
 const THEMES = {
   plain: { label: 'Plain', group: 'Plain' },
-  ivory: { label: 'gold', group: 'Ivory' },
   'ivory-navy': { label: 'navy', group: 'Ivory' },
-  'ivory-forest': { label: 'forest', group: 'Ivory' },
-  'ivory-burgundy': { label: 'burgundy', group: 'Ivory' },
-  noir: { label: 'gold', group: 'Noir' },
-  'noir-silver': { label: 'silver', group: 'Noir' },
-  'noir-rose': { label: 'rose', group: 'Noir' },
-  'noir-sage': { label: 'sage', group: 'Noir' },
+  'ivory-black': { label: 'black', group: 'Ivory' },
+  'noir-ivory': { label: 'ivory ink', group: 'Dark' },
+  'noir-chalk': { label: 'chalkboard', group: 'Dark' },
+  'noir-midnight': { label: 'midnight', group: 'Dark' },
+  'noir-redpen': { label: 'red pen', group: 'Dark' },
 } as const;
 type Theme = keyof typeof THEMES;
 
@@ -167,7 +165,7 @@ function Settings({ theme, setTheme }: { theme: Theme; setTheme: (t: Theme) => v
     const r = btn.current!.getBoundingClientRect();
     setAt({ right: Math.max(8, innerWidth - r.right), bottom: innerHeight - r.top + 6 });
   };
-  const groups = ['Plain', 'Ivory', 'Noir'] as const;
+  const groups = ['Plain', 'Ivory', 'Dark'] as const;
   return (
     <>
       <button ref={btn} className="vd-gear" onClick={toggle} aria-expanded={at !== null} aria-label="Settings" title="Settings">
@@ -178,7 +176,7 @@ function Settings({ theme, setTheme }: { theme: Theme; setTheme: (t: Theme) => v
           <h2>Colours</h2>
           {groups.map((g) => (
             <div key={g} className="vd-swatches">
-              {g !== 'Plain' && <span className="vd-group">{g.toLowerCase()} &amp;</span>}
+              {g !== 'Plain' && <span className="vd-group">{g === 'Ivory' ? 'ivory &' : 'dark'}</span>}
               {(Object.keys(THEMES) as Theme[])
                 .filter((k) => THEMES[k].group === g)
                 .map((k) => (
@@ -278,7 +276,7 @@ export function Variant({ store, strike }: VariantProps) {
                         </label>
                         <StrikeText id={t.id} text={t.text} done={t.done} style={strike} />
                         <button className="vd-return" onClick={() => store.unplace(t.id)} title="Return to Task List" aria-label={`Return ${t.text} to Task List`}>
-                          ↩
+                          <ReturnIcon seed={seedOf(t.id) + 7} />
                         </button>
                       </li>
                     ))}

@@ -40,6 +40,8 @@ export const roughCircle = (x: number, y: number, d: number, o: Options) => path
 
 export const roughPolyline = (pts: [number, number][], o: Options) => paths(gen.linearPath(pts, o));
 
+export const roughCurve = (pts: [number, number][], o: Options) => paths(gen.curve(pts, o));
+
 const avg = (a: number, b: number) => (a + b) / 2;
 
 function pathFromStroke(points: number[][]): string {
@@ -74,22 +76,6 @@ export function inkLine(x1: number, y1: number, x2: number, y2: number, seed: nu
     pts.push([x1 + (x2 - x1) * t + nx * off, y1 + (y2 - y1) * t + ny * off]);
   }
   return inkPath(pts, size);
-}
-
-/** Tight back-and-forth scribble across one line box of text. */
-export function scribble(x: number, y: number, w: number, h: number, seed: number): string {
-  const r = rng(seed);
-  const mid = y + h * 0.55;
-  const amp = h * 0.2;
-  const pts: number[][] = [[x - 3, mid + (r() - 0.5) * amp]];
-  let cx = x - 3;
-  let up = true;
-  while (cx < x + w + 3) {
-    cx += 6 + r() * 6;
-    pts.push([Math.min(cx, x + w + 3), mid + (up ? -1 : 1) * amp * (0.6 + r() * 0.6)]);
-    up = !up;
-  }
-  return inkPath(pts, Math.max(2, h * 0.11));
 }
 
 /**
@@ -127,37 +113,43 @@ export function zigzag(x: number, y: number, w: number, h: number, seed: number)
 }
 
 /**
- * Round 4's loose crossing-out: a zigzag through the middle of the line, both strokes slanted,
- * teeth that widen as the hand speeds up, tapering in and out where the pen lands and lifts.
+ * A gear doodled with the felt pen: one wobbly stroke round chunky, uneven teeth that overshoots where it
+ * started, and a hub looped a little more than once. Returns filled outline paths in a 32x32 box.
  */
-export function looseZigzag(x: number, y: number, w: number, h: number, seed: number): string {
+export function gearDoodle(seed: number): string[] {
   const r = rng(seed);
   const jit = (n: number) => (r() - 0.5) * n;
-  const mid = y + h * 0.56;
-  const amp = h * 0.3;
-  const rise = jit(h * 0.14) - h * 0.04; // most hands drift slightly uphill
-  const at = (cx: number) => mid + ((cx - x) / Math.max(w, 1)) * rise;
-  const end = x + w + 2;
-  let cx = x - 4;
-  let prev = [cx, at(cx) + amp * 0.5];
-  const pts: number[][] = [prev];
-  let up = true;
-  let stepW = h * (0.36 + r() * 0.08);
-  while (cx < end) {
-    // Up-strokes travel further than down-strokes, so the teeth lean forward like handwriting.
-    const adv = stepW * (up ? 0.64 : 0.36) + jit(h * 0.06);
-    const nx = Math.min(cx + adv, end);
-    const a = amp * (0.8 + r() * 0.4);
-    const turn = [nx + jit(1.5), at(nx) + (up ? -a : a)];
-    // Wobble mid-stroke; the turn itself stays sharp-ish (streamline rounds it just a little).
-    pts.push([prev[0] + (turn[0] - prev[0]) * 0.5 + jit(1.4), prev[1] + (turn[1] - prev[1]) * 0.5 + jit(1.4)]);
-    pts.push(turn);
-    prev = turn;
-    cx = nx;
-    up = !up;
-    stepW *= 1.01 + r() * 0.03;
+  const c = 16;
+  const at = (a: number, rad: number): number[] => [c + Math.cos(a) * rad + jit(1.3), c + Math.sin(a) * rad + jit(1.3)];
+  const teeth = 7;
+  const tilt = r() * Math.PI;
+  const corners: number[][] = [];
+  for (let i = 0; i < teeth; i++) {
+    const a = tilt + (i / teeth) * Math.PI * 2 + jit(0.1);
+    const tip = 13.4 + jit(1.4);
+    corners.push(at(a - 0.31, 9.2), at(a - 0.16, tip), at(a + 0.16, tip), at(a + 0.31, 9.2));
   }
-  // The pen lifts off the last stroke, so it tapers out instead of ending blunt.
-  const outline = getStroke(pts, { size: Math.max(2.8, h * 0.13), thinning: 0.2, smoothing: 0.3, streamline: 0.2, simulatePressure: true, last: true, start: { taper: h * 0.3 }, end: { taper: h * 0.9 } });
-  return pathFromStroke(outline);
+  // Carry on past the start along the first edge, the way a quick doodle never closes exactly.
+  const [p0, p1] = corners;
+  corners.push(p0, [p0[0] + (p1[0] - p0[0]) * 0.6 + 0.8, p0[1] + (p1[1] - p0[1]) * 0.6 + 0.8]);
+  const pts: number[][] = [];
+  for (let i = 0; i < corners.length - 1; i++) {
+    const [ax, ay] = corners[i];
+    const [bx, by] = corners[i + 1];
+    pts.push(corners[i], [ax + (bx - ax) * 0.5 + jit(0.9), ay + (by - ay) * 0.5 + jit(0.9)]);
+  }
+  pts.push(corners[corners.length - 1]);
+  // The hub: a quick loop that goes round a bit more than once and doesn't land on itself.
+  const hub: number[][] = [];
+  const a0 = r() * Math.PI * 2;
+  for (let i = 0; i <= 16; i++) {
+    const a = a0 + (i / 12.5) * Math.PI * 2;
+    const rad = 4 + i * 0.06 + jit(0.5);
+    hub.push([c + 0.4 + Math.cos(a) * rad, c + Math.sin(a) * rad]);
+  }
+  const pen = { thinning: 0.5, smoothing: 0.15, streamline: 0.1, simulatePressure: true, last: true };
+  return [
+    pathFromStroke(getStroke(pts, { ...pen, size: 2, start: { taper: 3 }, end: { taper: 7 } })),
+    pathFromStroke(getStroke(hub, { ...pen, size: 1.8, start: { taper: 2 }, end: { taper: 5 } })),
+  ];
 }

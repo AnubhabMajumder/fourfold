@@ -65,6 +65,6 @@ export function useTasks() {
 }
 
 export type Store = ReturnType<typeof useTasks>;
-export type StrikeStyle = 'zigzag' | 'rough' | 'ink' | 'css';
-export const STRIKES: StrikeStyle[] = ['zigzag', 'rough', 'ink', 'css'];
+export type StrikeStyle = 'zigzag' | 'sawtooth' | 'rough' | 'ink' | 'css';
+export const STRIKES: StrikeStyle[] = ['zigzag', 'sawtooth', 'rough', 'ink', 'css'];
 export type VariantProps = { store: Store; strike: StrikeStyle };

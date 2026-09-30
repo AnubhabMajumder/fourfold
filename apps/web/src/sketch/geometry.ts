@@ -49,6 +49,9 @@ export const BOX: Options = { roughness: 1.2, bowing: 1, strokeWidth: 1.5 };
 /** The pencil for icons: mini-Matrix, mini-list, gear. */
 export const ICON: Options = { roughness: 0.8, bowing: 0.5, strokeWidth: 1.4 };
 
+/** The pencil for the delete ×: one stroke per line, not rough.js's usual double stroke. */
+export const DELETE_MARK: Options = { roughness: 0.9, bowing: 0.6, strokeWidth: 1.6, disableMultiStroke: true };
+
 const paths = (drawable: ReturnType<typeof gen.rectangle>): SketchPath[] =>
   gen
     .toPaths(drawable)
@@ -79,6 +82,12 @@ export function miniMatrix(size: number, seed: number, marked?: number): SketchP
   const fill = { ...ICON, seed: seed + 3, stroke: 'none', fill: 'currentColor', hachureGap: 2.2, fillWeight: 1.1 };
   return [...shape, ...roughRect(x + 1.5, y + 1.5, half - 3, half - 3, fill)];
 }
+
+/** A sketched × filling a `size` square: two crossing strokes, each with its own seed. */
+export const cross = (size: number, seed: number, o: Options) => [
+  ...roughLine(2, 2, size - 2, size - 2, { ...o, seed }),
+  ...roughLine(size - 2, 2, 2, size - 2, { ...o, seed: seed + 1 }),
+];
 
 const avg = (a: number, b: number) => (a + b) / 2;
 

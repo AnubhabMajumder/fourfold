@@ -41,7 +41,10 @@ export function setup(start: Date = at('2026-09-24'), db: Db = openDatabase(':me
       now = d;
     },
     write: (text: string, id: string = randomUUID()) => call('POST', '/tasks', { id, text }),
+    edit: (id: string, text: string) => call('PATCH', `/tasks/${id}`, { text }),
     remove: (id: string) => call('DELETE', `/tasks/${id}`),
+    /** Moves a Task within its list, so that it ends up at `index` (counted from the top). */
+    move: (id: string, index: number) => call('POST', `/tasks/${id}/move`, { index }),
     place: (id: string, date: CalendarDate, quadrant: Quadrant, position?: number) =>
       call('POST', `/tasks/${id}/place`, { date, quadrant, position }),
     taskList: async () => (await call<Task[]>('GET', '/task-list')).body,

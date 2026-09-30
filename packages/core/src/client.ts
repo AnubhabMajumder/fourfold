@@ -56,6 +56,10 @@ export function createClient(baseUrl = '', fetchImpl: Fetch = (input, init) => f
       }
     },
     write: (id: string, text: string) => call<Task>('POST', '/tasks', { id, text }),
+    edit: (id: string, text: string) => call<Task>('PATCH', `/tasks/${id}`, { text }),
+    remove: (id: string) => call<void>('DELETE', `/tasks/${id}`),
+    /** Moves a Task within its list, so that it ends up at `index` (counted from the top). */
+    move: (id: string, index: number) => call<Task>('POST', `/tasks/${id}/move`, { index }),
     /** Places a Task at `position` in the Quadrant, or at its bottom without one. */
     place: (id: string, date: CalendarDate, quadrant: Quadrant, position?: number) =>
       call<Task>('POST', `/tasks/${id}/place`, { date, quadrant, position }),

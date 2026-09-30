@@ -140,7 +140,7 @@ describe('deleting a Task', () => {
     const api = setup();
     const [milk] = await api.writeAll('Buy milk');
     await api.place(milk!, TODAY, 'important-urgent');
-    expect(await api.remove(milk!)).toMatchObject({ status: 409, body: { reason: 'placed_task_not_deletable' } });
+    expect(await api.remove(milk!)).toMatchObject({ status: 409, body: { reason: 'task_already_placed' } });
     expect(await api.quadrantTexts(TODAY, 'important-urgent')).toEqual(['Buy milk']);
   });
 

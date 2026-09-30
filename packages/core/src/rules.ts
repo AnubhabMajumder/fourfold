@@ -9,13 +9,12 @@ export type Refusal =
   | 'empty_text'
   | 'task_exists'
   | 'task_not_found'
+  /** Only a Task in the Task List can be placed, deleted, or moved within the Task List. */
   | 'task_already_placed'
   | 'date_not_placeable'
   | 'task_not_placed'
   | 'task_not_completed'
   | 'task_already_completed'
-  | 'placed_task_not_deletable'
-  | 'completed_task_not_deletable'
   | 'completed_task_not_returnable';
 
 export const isBlank = (text: string) => text.trim() === '';
@@ -45,7 +44,7 @@ const STATE_TABLE: Record<TaskState, Record<Change, Refusal | null>> = {
     complete: null,
     uncomplete: 'task_not_completed',
     return: null,
-    delete: 'placed_task_not_deletable',
+    delete: 'task_already_placed',
   },
   completed: {
     edit: null,
@@ -53,7 +52,7 @@ const STATE_TABLE: Record<TaskState, Record<Change, Refusal | null>> = {
     complete: 'task_already_completed',
     uncomplete: null,
     return: 'completed_task_not_returnable',
-    delete: 'completed_task_not_deletable',
+    delete: 'task_already_placed',
   },
 };
 

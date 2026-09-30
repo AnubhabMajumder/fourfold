@@ -74,6 +74,11 @@ export class Store {
     });
   }
 
+  /** A change to the Task List alone, applied to whatever the Task List is at the time. */
+  private changeTaskList(apply: (taskList: Task[]) => Task[], send: () => Promise<unknown>) {
+    this.change((s) => ({ ...s, taskList: apply(s.taskList) }), send);
+  }
+
   /** Fetches the Task List and the Matrix on screen; changes not yet sent stay on top of what comes back. */
   refresh() {
     this.enqueue(async () => {
@@ -121,6 +126,39 @@ export class Store {
       () => this.client.place(id, date, quadrant),
     );
     return true;
+  }
+
+  /** Changes a Task's text; empty text deletes it. */
+  edit(id: string, text: string) {
+    if (isBlank(text)) return this.remove(id);
+    const trimmed = text.trim();
+    this.changeTaskList(
+      (list) => list.map((t) => (t.id === id ? { ...t, text: trimmed } : t)),
+      () => this.client.edit(id, trimmed),
+    );
+  }
+
+  /** Deletes a Task for good. */
+  remove(id: string) {
+    this.changeTaskList(
+      (list) => list.filter((t) => t.id !== id),
+      () => this.client.remove(id),
+    );
+  }
+
+  /** Moves a Task within the Task List, so that it ends up at `index`. */
+  move(id: string, index: number) {
+    const from = this.state.taskList.findIndex((t) => t.id === id);
+    if (from < 0 || from === index) return;
+    this.changeTaskList(
+      (list) => {
+        const task = list.find((t) => t.id === id);
+        if (!task) return list;
+        const rest = list.filter((t) => t !== task);
+        return [...rest.slice(0, index), task, ...rest.slice(index)];
+      },
+      () => this.client.move(id, index),
+    );
   }
 }
 

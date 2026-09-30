@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne } from 'drizzle-orm';
 import { generateKeyBetween } from 'fractional-indexing';
 import { Hono, type Context } from 'hono';
 import {
@@ -50,6 +50,13 @@ export function createApp({ db, clock = () => new Date() }: AppOptions) {
 
   const refuse = (c: Context, reason: Refusal) => c.json({ reason }, 409);
 
+  /** Why the Task can't be changed as a Task in the Task List, if it can't. */
+  function notInTaskList(tx: Pick<Db, 'select'>, id: string): Refusal | null {
+    const row = tx.select({ matrixDate: tasks.matrixDate }).from(tasks).where(eq(tasks.id, id)).get();
+    if (!row) return 'task_not_found';
+    return row.matrixDate === null ? null : 'task_already_placed';
+  }
+
   const api = new Hono()
     .onError((err, c) => (err instanceof BadRequest ? c.json({ error: err.message }, 400) : c.json({ error: 'Internal error' }, 500)))
 
@@ -81,6 +88,14 @@ export function createApp({ db, clock = () => new Date() }: AppOptions) {
       });
     })
 
+    .patch('/tasks/:id', async (c) => {
+      const b = await body(c);
+      if (typeof b.text !== 'string') throw new BadRequest('text must be a string');
+      if (isBlank(b.text)) return refuse(c, 'empty_text');
+      const row = db.update(tasks).set({ text: b.text.trim() }).where(eq(tasks.id, c.req.param('id'))).returning().get();
+      return row ? c.json(toTask(row)) : refuse(c, 'task_not_found');
+    })
+
     .delete('/tasks/:id', (c) =>
       db.transaction((tx) => {
         const task = findTask(tx, c.req.param('id'));
@@ -91,6 +106,29 @@ export function createApp({ db, clock = () => new Date() }: AppOptions) {
         return c.body(null, 204);
       }),
     )
+
+    .post('/tasks/:id/move', async (c) => {
+      const b = await body(c);
+      const { index } = b;
+      if (typeof index !== 'number' || !Number.isInteger(index) || index < 0) throw new BadRequest('index must be a whole number, 0 or more');
+      const id = c.req.param('id');
+      return db.transaction((tx) => {
+        const refusal = notInTaskList(tx, id);
+        if (refusal) return refuse(c, refusal);
+        // The Task List as it will be around the moved Task; a key between its new neighbours puts it at `index`
+        // while every other row keeps its key.
+        const others = tx
+          .select({ position: tasks.position })
+          .from(tasks)
+          .where(and(isNull(tasks.matrixDate), ne(tasks.id, id)))
+          .orderBy(asc(tasks.position))
+          .all();
+        const at = Math.min(index, others.length);
+        const position = generateKeyBetween(others[at - 1]?.position ?? null, others[at]?.position ?? null);
+        const moved = tx.update(tasks).set({ position }).where(eq(tasks.id, id)).returning().get()!;
+        return c.json(toTask(moved));
+      });
+    })
 
     /** Body: `date`, `quadrant`, and optionally `position`, the index in the Quadrant the Task is placed at. */
     .post('/tasks/:id/place', async (c) => {

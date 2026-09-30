@@ -8,8 +8,9 @@ import { join } from 'node:path';
 import { test as base, expect, type Page } from '@playwright/test';
 import { createClient } from '@fourfold/core';
 
-const PORT = 4799;
-export const URL = `http://localhost:${PORT}`;
+/** Not the fixed port in core, so the tests never clash with a Fourfold already running. */
+const TEST_PORT = 4799;
+export const BASE_URL = `http://localhost:${TEST_PORT}`;
 
 class Server {
   private proc: ChildProcess | undefined;
@@ -26,10 +27,10 @@ class Server {
     const now = new Date(this.start.getTime() + (Date.now() - this.startedAt));
     const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 23);
     this.proc = spawn(process.execPath, ['apps/api/dist/server.js'], {
-      env: { ...process.env, FOURFOLD_PORT: String(PORT), FOURFOLD_DB: join(this.dir, 'fourfold.db'), FOURFOLD_NOW: local },
+      env: { ...process.env, FOURFOLD_PORT: String(TEST_PORT), FOURFOLD_DB: join(this.dir, 'fourfold.db'), FOURFOLD_NOW: local },
       stdio: 'pipe',
     });
-    await expect.poll(async () => fetch(`${URL}/api/task-list`).then((r) => r.ok, () => false), { timeout: 10_000 }).toBe(true);
+    await expect.poll(async () => fetch(`${BASE_URL}/api/task-list`).then((r) => r.ok, () => false), { timeout: 10_000 }).toBe(true);
   }
 
   async stop() {
@@ -47,7 +48,7 @@ class Server {
 
 /** The API, driven straight from the test: for setting up data, and for changes made "in another window". */
 export function apiClient() {
-  const client = createClient(URL);
+  const client = createClient(BASE_URL);
   return {
     ...client,
     async write(...texts: string[]) {
@@ -79,7 +80,7 @@ export const test = base.extend<{ startAt: Date; pageAt: Date | undefined; serve
   /** The page, with its clock pinned to the test's time, opened on Fourfold. */
   app: async ({ page, startAt, pageAt, server: _ }, use) => {
     await page.clock.setFixedTime(pageAt ?? startAt);
-    await page.goto(URL);
+    await page.goto(BASE_URL);
     await expect(page.getByRole('heading', { name: 'Task List' })).toBeVisible();
     await use(page);
   },

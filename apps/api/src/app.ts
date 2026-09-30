@@ -1,7 +1,7 @@
 import { asc, eq, isNull } from 'drizzle-orm';
 import { generateKeyBetween } from 'fractional-indexing';
 import { Hono, type Context } from 'hono';
-import { isBlank, type Refusal, type Task } from '@fourfold/core';
+import { isBlank, newTask, type Refusal, type Task } from '@fourfold/core';
 import type { Db } from './db.ts';
 import { tasks, type TaskRow } from './schema.ts';
 
@@ -47,15 +47,7 @@ export function createApp({ db, clock = () => new Date() }: AppOptions) {
         if (tx.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, id)).get()) return refuse(c, 'task_exists');
         // A position key that sorts before every Task already in the Task List: new Tasks go to the top.
         const top = tx.select({ position: tasks.position }).from(tasks).where(isNull(tasks.matrixDate)).orderBy(asc(tasks.position)).limit(1).get();
-        const row: TaskRow = {
-          id,
-          text,
-          createdAt: now.toISOString(),
-          matrixDate: null,
-          quadrant: null,
-          position: generateKeyBetween(null, top?.position ?? null),
-          completedAt: null,
-        };
+        const row: TaskRow = { ...newTask(id, text, now.toISOString()), position: generateKeyBetween(null, top?.position ?? null) };
         tx.insert(tasks).values(row).run();
         return c.json(toTask(row), 201);
       });

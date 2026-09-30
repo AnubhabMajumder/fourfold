@@ -13,3 +13,13 @@ export type Task = {
   quadrant: Quadrant | null;
   completedAt: string | null;
 };
+
+/** A Task just written: it starts in the Task List, not yet placed or completed. */
+export const newTask = (id: string, text: string, createdAt: string): Task => ({
+  id,
+  text,
+  createdAt,
+  matrixDate: null,
+  quadrant: null,
+  completedAt: null,
+});

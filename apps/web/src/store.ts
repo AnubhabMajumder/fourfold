@@ -1,7 +1,7 @@
 // The web app's copy of what the API holds, changed optimistically: the screen updates first and the change goes
 // to the API in the background, in order. A change the API doesn't accept snaps back.
 import { createContext, useContext, useSyncExternalStore } from 'react';
-import { isBlank, RefusedError, type Client, type Task } from '@fourfold/core';
+import { isBlank, newTask, RefusedError, type Client, type Task } from '@fourfold/core';
 
 export type State = {
   taskList: Task[];
@@ -47,7 +47,7 @@ export class Store {
   write(text: string) {
     if (isBlank(text)) return false;
     // The web app creates the id, so the Task on screen is already the one the API will keep.
-    const task: Task = { id: crypto.randomUUID(), text: text.trim(), createdAt: new Date().toISOString(), matrixDate: null, quadrant: null, completedAt: null };
+    const task = newTask(crypto.randomUUID(), text.trim(), new Date().toISOString());
     this.set({ taskList: [task, ...this.state.taskList] });
     this.unsent.set(task.id, task);
     this.enqueue(async () => {

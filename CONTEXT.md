@@ -1,6 +1,6 @@
 # Fourfold
 
-A personal task manager built around the Eisenhower Matrix: the user writes tasks down, then decides for themselves which quadrant each belongs in. Each user's tasks are private to them and follow them across their devices.
+A personal task manager built around the Eisenhower Matrix: the user writes tasks down, then decides for themselves which quadrant each belongs in. Each user's tasks are private to them and follow them across their devices (v1 runs on a single laptop; multi-device comes later).
 
 ## Language
 

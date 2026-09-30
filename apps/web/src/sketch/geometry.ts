@@ -54,7 +54,7 @@ const paths = (drawable: ReturnType<typeof gen.rectangle>): SketchPath[] =>
 
 export const roughRect = (x: number, y: number, w: number, h: number, o: SketchOptions) => paths(gen.rectangle(x, y, w, h, o));
 
-export const roughLine = (x1: number, y1: number, x2: number, y2: number, o: SketchOptions) => paths(gen.line(x1, y1, x2, y2, o));
+const roughLine =(x1: number, y1: number, x2: number, y2: number, o: SketchOptions) => paths(gen.line(x1, y1, x2, y2, o));
 
 /** A sketched × filling a `size` square: two crossing strokes, each with its own seed. */
 export const cross = (size: number, seed: number, o: Options) => [

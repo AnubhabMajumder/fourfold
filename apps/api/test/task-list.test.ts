@@ -121,6 +121,8 @@ describe('the Task List', () => {
   });
 
   it('rewrites only the moved Task when moving it', async () => {
+    // The one test that looks at the rows themselves: the positions are hidden from the API, and the issue asks
+    // that a move leaves every other row as it was.
     const db = openDatabase(':memory:');
     const api = setup(undefined, db);
     const [a] = await api.writeAll('a', 'b', 'c', 'd');

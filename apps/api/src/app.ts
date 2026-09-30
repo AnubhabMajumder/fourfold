@@ -30,6 +30,13 @@ export function createApp({ db, clock = () => new Date() }: AppOptions) {
 
   const refuse = (c: Context, reason: Refusal) => c.json({ reason }, 409);
 
+  /** Why the Task can't be changed as a Task in the Task List, if it can't. */
+  function notInTaskList(tx: Pick<Db, 'select'>, id: string): Refusal | null {
+    const row = tx.select({ matrixDate: tasks.matrixDate }).from(tasks).where(eq(tasks.id, id)).get();
+    if (!row) return 'task_not_found';
+    return row.matrixDate === null ? null : 'task_already_placed';
+  }
+
   const api = new Hono()
     .onError((err, c) => (err instanceof BadRequest ? c.json({ error: err.message }, 400) : c.json({ error: 'Internal error' }, 500)))
 
@@ -64,9 +71,8 @@ export function createApp({ db, clock = () => new Date() }: AppOptions) {
     .delete('/tasks/:id', (c) => {
       const id = c.req.param('id');
       return db.transaction((tx) => {
-        const row = tx.select({ matrixDate: tasks.matrixDate }).from(tasks).where(eq(tasks.id, id)).get();
-        if (!row) return refuse(c, 'task_not_found');
-        if (row.matrixDate !== null) return refuse(c, 'task_already_placed');
+        const refusal = notInTaskList(tx, id);
+        if (refusal) return refuse(c, refusal);
         tx.delete(tasks).where(eq(tasks.id, id)).run();
         return c.body(null, 204);
       });
@@ -78,9 +84,8 @@ export function createApp({ db, clock = () => new Date() }: AppOptions) {
       if (typeof index !== 'number' || !Number.isInteger(index) || index < 0) throw new BadRequest('index must be a whole number, 0 or more');
       const id = c.req.param('id');
       return db.transaction((tx) => {
-        const row = tx.select().from(tasks).where(eq(tasks.id, id)).get();
-        if (!row) return refuse(c, 'task_not_found');
-        if (row.matrixDate !== null) return refuse(c, 'task_already_placed');
+        const refusal = notInTaskList(tx, id);
+        if (refusal) return refuse(c, refusal);
         // The Task List as it will be around the moved Task; a key between its new neighbours puts it at `index`
         // while every other row keeps its key.
         const others = tx

@@ -20,7 +20,7 @@ const MOUSE_SLOP = 4;
 const TOUCH_SLOP = 8;
 
 /** Where a dropped Task would land: the list, and its index there once it has moved. */
-export type DropTarget = { list: string; index: number };
+type DropTarget = { list: string; index: number };
 
 type Dragging = {
   id: string;
@@ -33,12 +33,13 @@ type Dragging = {
   over: (DropTarget & { lineY: number }) | null;
 };
 
-type DropList = { el: HTMLElement; onDrop: (id: string, index: number) => void };
+/** A list registered to take drops: its element, and what to do with a Task dropped in it. */
+type Registered = { el: HTMLElement; onDrop: (id: string, index: number) => void };
 
 class DragController {
   private dragging: Dragging | null = null;
   private listeners = new Set<() => void>();
-  private lists = new Map<string, DropList>();
+  private lists = new Map<string, Registered>();
 
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
@@ -51,7 +52,7 @@ class DragController {
     for (const l of this.listeners) l();
   }
 
-  register(list: string, entry: DropList) {
+  register(list: string, entry: Registered) {
     this.lists.set(list, entry);
     return () => {
       if (this.lists.get(list) === entry) this.lists.delete(list);
@@ -63,12 +64,13 @@ class DragController {
     const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-drop-list]');
     const list = el?.dataset.dropList;
     if (!el || !list || this.lists.get(list)?.el !== el) return null;
-    const items = [...el.querySelectorAll<HTMLElement>('[data-drag-id]')]
-      .filter((item) => item.dataset.dragId !== id)
-      .map((item) => item.getBoundingClientRect());
-    let index = items.findIndex((r) => y < r.top + r.height / 2);
-    if (index < 0) index = items.length;
-    const [prev, next] = [items[index - 1], items[index]];
+    // The boxes of the other Tasks in the list: the dragged one isn't counted, as it's about to leave its place.
+    const taskBoxes = [...el.querySelectorAll<HTMLElement>('[data-drag-id]')]
+      .filter((task) => task.dataset.dragId !== id)
+      .map((task) => task.getBoundingClientRect());
+    let index = taskBoxes.findIndex((r) => y < r.top + r.height / 2);
+    if (index < 0) index = taskBoxes.length;
+    const [prev, next] = [taskBoxes[index - 1], taskBoxes[index]];
     const y0 = prev && next ? (prev.bottom + next.top) / 2 : prev ? prev.bottom : next ? next.top : el.getBoundingClientRect().top;
     return { list, index, lineY: y0 - el.getBoundingClientRect().top };
   }

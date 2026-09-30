@@ -119,6 +119,8 @@ ul {
 .task-list {
   width: 320px;
   flex: none;
+  display: flex;
+  flex-direction: column;
   padding: 16px 20px;
   overflow: auto;
   background: var(--panel);
@@ -150,11 +152,6 @@ ul {
 .add-task button {
   font: 700 22px/1 Caveat, cursive;
   padding: 6px 14px;
-}
-
-.task-list {
-  display: flex;
-  flex-direction: column;
 }
 
 .task-row {

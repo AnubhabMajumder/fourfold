@@ -1,3 +1,5 @@
+import type { CalendarDate } from './dates.ts';
+
 /** The fixed port the local API listens on. The installed app and saved settings are tied to this exact origin. */
 export const PORT = 4739;
 
@@ -9,7 +11,7 @@ export type Task = {
   id: string;
   text: string;
   createdAt: string;
-  matrixDate: string | null;
+  matrixDate: CalendarDate | null;
   quadrant: Quadrant | null;
   completedAt: string | null;
 };

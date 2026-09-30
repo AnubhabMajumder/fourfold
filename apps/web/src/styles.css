@@ -1,0 +1,33 @@
+/* Plain for now; the hand-drawn look comes later. */
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+}
+
+.app {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.task-list {
+  max-width: 22rem;
+}
+
+.add-task {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.add-task input {
+  flex: 1;
+}
+
+.task-list ul {
+  list-style: none;
+  padding: 0;
+}
+
+.task-row {
+  padding: 0.35rem 0;
+}

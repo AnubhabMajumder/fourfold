@@ -1,3 +1,10 @@
 # Claude Code: per-machine settings and agent worktrees
 .claude/settings.local.json
 .claude/worktrees/
+
+# Build output and dependencies
+node_modules/
+dist/
+test-results/
+playwright-report/
+*.tsbuildinfo

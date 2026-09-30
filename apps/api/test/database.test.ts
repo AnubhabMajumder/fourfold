@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { openDatabase } from '../src/db.ts';
+import { matrices } from '../src/schema.ts';
 import { setup } from './harness.ts';
 
 describe('the database file', () => {
@@ -33,5 +34,14 @@ describe('the database file', () => {
     const second = openDatabase(file);
     expect(await setup(undefined, second).taskListTexts()).toEqual(['Call Mum', 'Buy milk']);
     second.$client.close();
+  });
+
+  it('refuses to delete a Matrix while any Task belongs to it', async () => {
+    const db = openDatabase(':memory:');
+    const api = setup(undefined, db);
+    const [milk] = await api.writeAll('Buy milk');
+    await api.place(milk!, '2026-09-24', 'important-urgent');
+    expect(() => db.delete(matrices).run()).toThrow(/FOREIGN KEY/);
+    expect(await api.quadrantTexts('2026-09-24', 'important-urgent')).toEqual(['Buy milk']);
   });
 });

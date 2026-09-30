@@ -195,7 +195,7 @@ function Settings({ theme, setTheme }: { theme: Theme; setTheme: (t: Theme) => v
   );
 }
 
-export function Variant({ store, strike }: VariantProps) {
+export function Variant({ store, strike, headerNote, belowHeader, overlay, paused }: VariantProps) {
   const { drag, start } = useDragPlace(store);
   const [text, setText] = useState('');
   const [theme, setTheme] = useUrlParam<Theme>('theme', THEMES, 'plain');
@@ -209,6 +209,7 @@ export function Variant({ store, strike }: VariantProps) {
     <div className="vd" data-theme={theme}>
       <header className="vd-top">
         <h1>Fourfold</h1>
+        {headerNote}
         <nav className="vd-date">
           <RoughBox seed={11} className="vd-btn">
             <button aria-label="Previous date">‹</button>
@@ -219,7 +220,8 @@ export function Variant({ store, strike }: VariantProps) {
           </RoughBox>
         </nav>
       </header>
-      <div className="vd-body">
+      {belowHeader}
+      <div className="vd-body" inert={paused} data-paused={paused || undefined}>
         <aside className={`vd-page vd-list${drag?.zone === 'list' ? ' over' : ''}`} data-drop="list" aria-labelledby="vd-list">
           <h2 id="vd-list">Task List</h2>
           <form
@@ -287,6 +289,7 @@ export function Variant({ store, strike }: VariantProps) {
           </main>
         </section>
       </div>
+      {overlay}
       {drag && (
         <div className="vd-ghost" style={{ left: drag.x - drag.dx, top: drag.y - drag.dy, width: Math.min(drag.w, 360) }} aria-hidden="true">
           {drag.text}

@@ -60,6 +60,8 @@ export function useTasks() {
         return [...rest.slice(0, at), moved, ...rest.slice(at)];
       }),
     remove: (id: string) => setTasks((ts) => ts.filter((t) => t.id !== id)),
+    /** PROTOTYPE (#27): snap everything back to an earlier snapshot, as the web app does when a change can't reach the API. */
+    replaceAll: setTasks,
     add: (text: string) => setTasks((ts) => [...ts, { id: `n${nextId++}`, text, quadrant: null, done: false }]),
   };
 }
@@ -67,4 +69,12 @@ export function useTasks() {
 export type Store = ReturnType<typeof useTasks>;
 export type StrikeStyle = 'zigzag' | 'rough';
 export const STRIKES: StrikeStyle[] = ['zigzag', 'rough'];
-export type VariantProps = { store: Store; strike: StrikeStyle };
+export type VariantProps = {
+  store: Store;
+  strike: StrikeStyle;
+  /** PROTOTYPE (#27): slots for showing that the API can't be reached. */
+  headerNote?: import('react').ReactNode;
+  belowHeader?: import('react').ReactNode;
+  overlay?: import('react').ReactNode;
+  paused?: boolean;
+};

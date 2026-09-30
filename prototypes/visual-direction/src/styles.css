@@ -236,3 +236,23 @@ body.vd-dragging, body.vd-dragging * { cursor: grabbing !important; }
   .vd-q-list { padding: 12px 10px; }
   .vd-axis-top, .vd-axis-left { font-size: 20px; }
 }
+
+/* ============ PROTOTYPE #27: API unreachable ============ */
+.un-note { font-size: 17px; padding: 3px 12px; color: var(--muted); }
+.un-note.down { color: var(--danger); }
+.un-strip { padding: 6px 24px; text-align: center; background: var(--soft); color: var(--danger); border-bottom: 1px dashed var(--line); font-size: 18px; }
+.un-note.back, .un-strip.back { color: var(--muted); }
+.vd-body[data-paused] { opacity: .45; filter: grayscale(.4); transition: opacity .2s; }
+.un-overlay { position: fixed; inset: 0; z-index: 960; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 55%, transparent); }
+.un-card { background: var(--panel); padding: 26px 34px; text-align: center; max-width: 420px; }
+.un-card h2 { font: 700 34px/1 Caveat, cursive; margin: 0 0 12px; }
+.un-card p { margin: 4px 0; }
+.un-faint { color: var(--muted); }
+.un-select { background: #2a2a2a; color: #fff; border: 0; border-radius: 999px; padding: 6px 10px; font: inherit; }
+.proto-switcher button:disabled { opacity: .35; }
+.un-browser { height: 100%; display: grid; place-items: center; background: #fff; color: #202124; font: 15px/1.5 system-ui, sans-serif; }
+.un-browser > div { max-width: 520px; }
+.un-browser-icon { font-size: 56px; color: #9aa0a6; }
+.un-browser h1 { font-size: 24px; font-weight: 500; margin: 12px 0; }
+.un-browser-code { color: #5f6368; font-size: 12px; }
+.un-browser button { margin-top: 20px; background: #1a73e8; color: #fff; border: 0; border-radius: 4px; padding: 8px 16px; }

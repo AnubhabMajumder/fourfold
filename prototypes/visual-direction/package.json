@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --open",
-    "build": "tsc --noEmit && vite build"
+    "build": "tsc --noEmit && vite build",
+    "unreachable": "vite --open /unreachable.html"
   },
   "dependencies": {
     "perfect-freehand": "^1.2.3",

@@ -28,3 +28,28 @@ Per the in-Quadrant layout decision (#6): Quadrants are plain ordered lists, Tas
 Known gaps: B overflows horizontally at phone width; no ~200-Task stress test; D's drag has no keyboard equivalent beyond the place/return buttons, and on touch the whole Task is the drag handle (blocks scrolling on it).
 
 Screenshots in `screenshots/`.
+
+## #27: When the local API isn't running
+
+Throwaway. It answers one question: **what should the web app show when the local API goes away mid-session?** It's built on variant D.
+
+```sh
+npm run unreachable
+```
+
+The bottom bar has these controls:
+
+- **API: running / stopped** flips a fake API. While it's stopped, every change shows for a moment and then snaps back, as the real app will.
+- **refocus** acts like switching back to the window, when the re-fetch fails. Real window focus works too.
+- **reopen page** shows the browser's own error page (Q1: the app can't change this).
+- **The dropdown** picks how it's shown (`?note=`):
+
+| `?note=` | What you see while the API is stopped |
+| --- | --- |
+| `none` | Nothing. Changes just snap back (Q4 a). |
+| `header` | A quiet sketched note in the header (Q4 b, the recommendation). |
+| `strip` | A full-width strip under the header (a louder b). |
+| `paused` | The header note, plus a greyed-out page that won't take changes, so nothing snaps back. |
+| `overlay` | A sketched card over the whole page (Q4 c). |
+
+The note appears only once the app has *noticed*: after a change fails, or when the window regains focus. When the API comes back, the note reads "Back, and up to date ✓" for about two seconds, then goes away.

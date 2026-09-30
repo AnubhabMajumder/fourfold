@@ -8,9 +8,13 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
+    "@fontsource/caveat": "^5.3.0",
+    "@fontsource/kalam": "^5.3.0",
     "@fourfold/core": "workspace:*",
+    "perfect-freehand": "^1.2.3",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "roughjs": "^4.6.6"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",

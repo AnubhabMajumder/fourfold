@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { SEEDS } from '../sketch/geometry.ts';
+import { SketchBox } from '../sketch/Sketch.tsx';
 import { useStore } from '../store.ts';
 
 export function TaskList() {
@@ -14,8 +16,12 @@ export function TaskList() {
           if (store.write(text)) setText('');
         }}
       >
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Write a Task…" aria-label="New Task" autoFocus />
-        <button type="submit">add</button>
+        <SketchBox seed={SEEDS.input} className="new-task">
+          <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Write a Task…" aria-label="New Task" autoFocus />
+        </SketchBox>
+        <SketchBox seed={SEEDS.add}>
+          <button type="submit">add</button>
+        </SketchBox>
       </form>
       <ul>
         {state.taskList.map((t) => (

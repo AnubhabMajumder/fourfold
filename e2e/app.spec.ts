@@ -200,6 +200,27 @@ test.describe('placing with the mini-Matrix buttons', () => {
     await expect(quadrant(app, 'Important + Urgent').getByRole('listitem')).toHaveCount(0);
   });
 
+  test.describe('left open past midnight', () => {
+    test.use({ startAt: new Date(`${TODAY}T23:59:58`) });
+
+    test("places into the new day's Matrix", async ({ app, api }) => {
+      const [, probe] = await api.write('Buy milk', 'Probe');
+      await app.reload();
+      // Both clocks go past midnight: the server's runs on (the probe goes in once it has), the page's is moved on.
+      await expect
+        .poll(() => api.place(probe!, '2026-09-25', 'not-important-not-urgent').then(() => true, () => false), { timeout: 5_000 })
+        .toBe(true);
+      await app.clock.setFixedTime(new Date('2026-09-25T00:00:05'));
+
+      await placeButton(app, 'Buy milk').click();
+      await app.getByRole('button', { name: 'Place in Important + Urgent' }).click();
+
+      await expect(matrix(app)).toHaveAccessibleName('Matrix for Friday, 25 September');
+      await expect(quadrant(app, 'Important + Urgent').getByRole('listitem')).toHaveText(['Buy milk']);
+      await expect.poll(async () => (await api.matrix('2026-09-25'))?.quadrants['important-urgent'].map((t) => t.text)).toEqual(['Buy milk']);
+    });
+  });
+
   test('lets each Quadrant scroll on its own when it overflows, drawing Tasks straight', async ({ app, api }) => {
     const texts = Array.from({ length: 30 }, (_, i) => `Task ${i + 1}`);
     for (const id of await api.write(...texts)) await api.place(id, TODAY, 'important-urgent');

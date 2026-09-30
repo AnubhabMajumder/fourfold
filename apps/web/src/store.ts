@@ -96,17 +96,27 @@ export class Store {
     return true;
   }
 
+  /** The app shows today, so once midnight has passed it moves on to the new day's Matrix. */
+  private followToday() {
+    const today = localDate(new Date());
+    if (this.confirmed.date === today) return;
+    this.confirmed = { ...this.confirmed, date: today, matrix: emptyMatrix(today) };
+    this.show();
+    this.refresh();
+  }
+
   /** Moves a Task List Task to the bottom of a Quadrant of the Matrix on screen. Returns whether the rules allow it. */
   place(id: string, quadrant: Quadrant) {
+    this.followToday();
     const { date, taskList } = this.state;
     const task = taskList.find((t) => t.id === id);
     if (!task || refusalToPlace(task, date, new Date())) return false;
     this.change(
       (s) => {
-        const t = s.taskList.find((t) => t.id === id);
+        const t = s.taskList.find((x) => x.id === id);
         if (!t || s.matrix.date !== date) return s;
         const quadrants = { ...s.matrix.quadrants, [quadrant]: [...s.matrix.quadrants[quadrant], { ...t, matrixDate: date, quadrant }] };
-        return { ...s, taskList: s.taskList.filter((t) => t.id !== id), matrix: { ...s.matrix, quadrants } };
+        return { ...s, taskList: s.taskList.filter((x) => x.id !== id), matrix: { ...s.matrix, quadrants } };
       },
       () => this.client.place(id, date, quadrant),
     );

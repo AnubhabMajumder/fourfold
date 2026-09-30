@@ -1,7 +1,7 @@
 // The web app's copy of what the API holds, changed optimistically: the screen updates first and the change goes
 // to the API in the background, in order. A change the API doesn't accept snaps back.
 import { createContext, useContext, useSyncExternalStore } from 'react';
-import { isBlank, type Client, type Task } from '@fourfold/core';
+import { isBlank, RefusedError, type Client, type Task } from '@fourfold/core';
 
 export type State = {
   taskList: Task[];
@@ -53,8 +53,10 @@ export class Store {
     this.enqueue(async () => {
       try {
         await this.client.write(task.id, task.text);
-      } catch {
+      } catch (err) {
         this.set({ taskList: this.state.taskList.filter((t) => t.id !== task.id) });
+        // Refused: what's on screen is out of date, so fetch what the API actually holds.
+        if (err instanceof RefusedError) this.refresh();
       } finally {
         this.unsent.delete(task.id);
       }

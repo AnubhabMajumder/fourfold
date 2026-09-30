@@ -74,6 +74,15 @@ test.describe('the Task List', () => {
     await expect(rows(app)).toHaveCount(0);
   });
 
+  test('re-fetches the Task List after the API refuses a Task', async ({ app, api }) => {
+    await app.route('**/api/tasks', async (route) => {
+      await api.write('Written in another window');
+      await route.fulfill({ status: 409, json: { reason: 'empty_text' } });
+    });
+    await write(app, 'Buy milk');
+    await expect(rows(app)).toHaveText(['Written in another window']);
+  });
+
   test('keeps Tasks after a reload and after the API restarts', async ({ app, api, server }) => {
     await write(app, 'Buy milk', 'Call Mum');
     await expect.poll(async () => (await api.taskList()).length).toBe(2);

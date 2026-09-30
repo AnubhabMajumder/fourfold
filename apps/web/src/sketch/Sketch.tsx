@@ -1,7 +1,7 @@
 // The hand-drawn layers: decorative, aria-hidden SVG over or behind real controls and text, which keep all the
 // meaning. Each shape is redrawn only when its element's size changes.
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BOX, inkLine, roughRect, type SketchPath } from './geometry.ts';
+import { BOX, inkLine, miniMatrix, roughRect, type SketchPath } from './geometry.ts';
 
 /** An element's size, kept up to date as it resizes. */
 function useSize<T extends HTMLElement>() {
@@ -37,6 +37,16 @@ export function SketchBox({ seed, className = '', children }: { seed: number; cl
         <Paths paths={paths} />
       </svg>
     </span>
+  );
+}
+
+/** A sketched mini-Matrix icon, with one Quadrant (its index in QUADRANTS) marked if given. */
+export function MiniMatrix({ seed, marked, size = 18 }: { seed: number; marked?: number; size?: number }) {
+  const paths = useMemo(() => miniMatrix(size, seed, marked), [size, seed, marked]);
+  return (
+    <svg aria-hidden="true" className="icon" width={size} height={size}>
+      <Paths paths={paths} />
+    </svg>
   );
 }
 

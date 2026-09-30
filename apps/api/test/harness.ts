@@ -1,7 +1,7 @@
 // Drives the API over HTTP, in-process, with a fresh in-memory database and a clock the test controls.
 import { randomUUID } from 'node:crypto';
 import { expect } from 'vitest';
-import type { Task } from '@fourfold/core';
+import type { CalendarDate, Matrix, Quadrant, Task } from '@fourfold/core';
 import { createApp } from '../src/app.ts';
 import { openDatabase, type Db } from '../src/db.ts';
 
@@ -18,6 +18,12 @@ export function setup(start: Date = at('2026-09-24'), db: Db = openDatabase(':me
   let now = start;
   const app = createApp({ db, clock: () => now });
 
+  /** A Matrix exists only while it holds a Task, whatever calls came before: checked after every call. */
+  const expectNoEmptyMatrix = () =>
+    expect(
+      db.$client.prepare('select date from matrices m where not exists (select 1 from tasks t where t.matrix_date = m.date)').pluck().all(),
+    ).toEqual([]);
+
   async function call<T = Task>(method: string, path: string, body?: unknown): Promise<Response<T>> {
     const res = await app.request(`/api${path}`, {
       method,
@@ -25,6 +31,7 @@ export function setup(start: Date = at('2026-09-24'), db: Db = openDatabase(':me
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const text = await res.text();
+    expectNoEmptyMatrix();
     return { status: res.status, body: (text ? JSON.parse(text) : undefined) as T };
   }
 
@@ -34,7 +41,11 @@ export function setup(start: Date = at('2026-09-24'), db: Db = openDatabase(':me
       now = d;
     },
     write: (text: string, id: string = randomUUID()) => call('POST', '/tasks', { id, text }),
+    remove: (id: string) => call('DELETE', `/tasks/${id}`),
+    place: (id: string, date: CalendarDate, quadrant: Quadrant, position?: number) =>
+      call('POST', `/tasks/${id}/place`, { date, quadrant, position }),
     taskList: async () => (await call<Task[]>('GET', '/task-list')).body,
+    matrix: (date: CalendarDate) => call<Matrix>('GET', `/matrices/${date}`),
 
     /** Writes Tasks in order and returns their ids (the Task List ends up newest first). */
     async writeAll(...texts: string[]) {
@@ -47,6 +58,8 @@ export function setup(start: Date = at('2026-09-24'), db: Db = openDatabase(':me
       return ids;
     },
     taskListTexts: async () => (await api.taskList()).map((t) => t.text),
+    /** The texts in one Quadrant of a date's Matrix, in order. */
+    quadrantTexts: async (date: CalendarDate, quadrant: Quadrant) => (await api.matrix(date)).body.quadrants[quadrant].map((t) => t.text),
   };
   return api;
 }

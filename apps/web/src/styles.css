@@ -163,11 +163,55 @@ ul {
   border-top: 1px solid var(--line-soft);
 }
 
+.task-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A button that is only a sketched icon */
+.icon-button {
+  display: inline-flex;
+  padding: 4px;
+  color: var(--muted);
+}
+
+.icon-button:hover {
+  color: var(--ink);
+  background: var(--soft);
+}
+
+.icon {
+  display: block;
+  overflow: visible;
+}
+
+.place {
+  position: relative;
+  flex: none;
+  margin-left: 6px;
+}
+
+/* The four Quadrant buttons, laid out as the Matrix is */
+.place-quadrants {
+  position: absolute;
+  z-index: 1;
+  top: 100%;
+  right: 0;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 2px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
 .matrix {
   flex: 1;
   min-width: 0;
   display: grid;
-  grid-template: auto 1fr / auto 1fr;
+  grid-template: auto minmax(0, 1fr) / auto minmax(0, 1fr);
   padding: 12px 24px 16px 8px;
 }
 
@@ -199,7 +243,8 @@ ul {
   grid-row: 2;
   position: relative;
   display: grid;
-  grid-template: 1fr 1fr / 1fr 1fr;
+  /* minmax(0, …): a long Quadrant scrolls inside its own cell rather than stretching the Matrix. */
+  grid-template: repeat(2, minmax(0, 1fr)) / repeat(2, minmax(0, 1fr));
   min-height: 0;
 }
 
@@ -213,6 +258,12 @@ ul {
   min-height: 0;
   overflow: auto;
   padding: 22px 28px;
+}
+
+/* Placed Tasks are drawn straight: no tilt or scatter. */
+.placed-task {
+  padding: 4px 0;
+  overflow-wrap: anywhere;
 }
 
 .dividers {

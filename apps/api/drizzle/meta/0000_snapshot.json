@@ -1,0 +1,131 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "30e84543-2f75-481d-b171-ab2e58eb3994",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "tables": {
+    "matrices": {
+      "name": "matrices",
+      "columns": {
+        "date": {
+          "name": "date",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "tasks": {
+      "name": "tasks",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "matrix_date": {
+          "name": "matrix_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "quadrant": {
+          "name": "quadrant",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "position": {
+          "name": "position",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "tasks_by_list": {
+          "name": "tasks_by_list",
+          "columns": [
+            "matrix_date",
+            "quadrant",
+            "position"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "tasks_matrix_date_matrices_date_fk": {
+          "name": "tasks_matrix_date_matrices_date_fk",
+          "tableFrom": "tasks",
+          "tableTo": "matrices",
+          "columnsFrom": [
+            "matrix_date"
+          ],
+          "columnsTo": [
+            "date"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "tasks_text_not_empty": {
+          "name": "tasks_text_not_empty",
+          "value": "length(trim(\"tasks\".\"text\")) > 0"
+        },
+        "tasks_placed_in_a_quadrant": {
+          "name": "tasks_placed_in_a_quadrant",
+          "value": "(\"tasks\".\"matrix_date\" is null) = (\"tasks\".\"quadrant\" is null)"
+        },
+        "tasks_completed_only_when_placed": {
+          "name": "tasks_completed_only_when_placed",
+          "value": "\"tasks\".\"completed_at\" is null or \"tasks\".\"matrix_date\" is not null"
+        }
+      }
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

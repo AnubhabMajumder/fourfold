@@ -1,0 +1,52 @@
+// Drives the API over HTTP, in-process, with a fresh in-memory database and a clock the test controls.
+import { randomUUID } from 'node:crypto';
+import { expect } from 'vitest';
+import type { Task } from '@fourfold/core';
+import { createApp } from '../src/app.ts';
+import { openDatabase, type Db } from '../src/db.ts';
+
+/** Local time on a calendar date, e.g. at('2026-09-24', '19:59'). */
+export function at(date: string, time = '10:00'): Date {
+  const [y, m, d] = date.split('-').map(Number) as [number, number, number];
+  const [hh, mm] = time.split(':').map(Number) as [number, number];
+  return new Date(y, m - 1, d, hh, mm);
+}
+
+export type Response<T = unknown> = { status: number; body: T };
+
+export function setup(start: Date = at('2026-09-24'), db: Db = openDatabase(':memory:')) {
+  let now = start;
+  const app = createApp({ db, clock: () => now });
+
+  async function call<T = Task>(method: string, path: string, body?: unknown): Promise<Response<T>> {
+    const res = await app.request(`/api${path}`, {
+      method,
+      headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const text = await res.text();
+    return { status: res.status, body: (text ? JSON.parse(text) : undefined) as T };
+  }
+
+  const api = {
+    call,
+    setTime: (d: Date) => {
+      now = d;
+    },
+    write: (text: string, id: string = randomUUID()) => call('POST', '/tasks', { id, text }),
+    taskList: async () => (await call<Task[]>('GET', '/task-list')).body,
+
+    /** Writes Tasks in order and returns their ids (the Task List ends up newest first). */
+    async writeAll(...texts: string[]) {
+      const ids: string[] = [];
+      for (const text of texts) {
+        const res = await api.write(text);
+        expect(res.status).toBe(201);
+        ids.push(res.body.id);
+      }
+      return ids;
+    },
+    taskListTexts: async () => (await api.taskList()).map((t) => t.text),
+  };
+  return api;
+}

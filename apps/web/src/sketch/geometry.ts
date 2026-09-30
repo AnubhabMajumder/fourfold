@@ -46,15 +46,42 @@ export type SketchOptions = Options & { seed: number };
 /** The pencil for sketched boxes: inputs, buttons, checkboxes. */
 export const BOX: Options = { roughness: 1.2, bowing: 1, strokeWidth: 1.5 };
 
+/** The pencil for icons: mini-Matrix, mini-list, gear. */
+export const ICON: Options = { roughness: 0.8, bowing: 0.5, strokeWidth: 1.4 };
+
 /** The pencil for the delete ×: one stroke per line, not rough.js's usual double stroke. */
 export const DELETE_MARK: Options = { roughness: 0.9, bowing: 0.6, strokeWidth: 1.6, disableMultiStroke: true };
 
 const paths = (drawable: ReturnType<typeof gen.rectangle>): SketchPath[] =>
-  gen.toPaths(drawable).map((p) => ({ d: p.d, strokeWidth: p.strokeWidth }));
+  gen
+    .toPaths(drawable)
+    .filter((p) => p.stroke !== 'none')
+    .map((p) => ({ d: p.d, strokeWidth: p.strokeWidth }));
 
 export const roughRect = (x: number, y: number, w: number, h: number, o: SketchOptions) => paths(gen.rectangle(x, y, w, h, o));
 
-const roughLine =(x1: number, y1: number, x2: number, y2: number, o: SketchOptions) => paths(gen.line(x1, y1, x2, y2, o));
+const roughLine = (x1: number, y1: number, x2: number, y2: number, o: SketchOptions) => paths(gen.line(x1, y1, x2, y2, o));
+
+/**
+ * A mini-Matrix, `size` px square: a box split into four Quadrants, with the one at `marked` (its index in
+ * QUADRANTS: left to right, top to bottom) hatched in, if given.
+ */
+export function miniMatrix(size: number, seed: number, marked?: number): SketchPath[] {
+  const inset = 1.5;
+  const side = size - 2 * inset;
+  const half = side / 2;
+  const mid = inset + half;
+  const shape = [
+    ...roughRect(inset, inset, side, side, { ...ICON, seed }),
+    ...roughLine(mid, inset, mid, inset + side, { ...ICON, seed: seed + 1 }),
+    ...roughLine(inset, mid, inset + side, mid, { ...ICON, seed: seed + 2 }),
+  ];
+  if (marked === undefined) return shape;
+  const x = inset + (marked % 2) * half;
+  const y = inset + Math.floor(marked / 2) * half;
+  const fill = { ...ICON, seed: seed + 3, stroke: 'none', fill: 'currentColor', hachureGap: 2.2, fillWeight: 1.1 };
+  return [...shape, ...roughRect(x + 1.5, y + 1.5, half - 3, half - 3, fill)];
+}
 
 /** A sketched × filling a `size` square: two crossing strokes, each with its own seed. */
 export const cross = (size: number, seed: number, o: Options) => [

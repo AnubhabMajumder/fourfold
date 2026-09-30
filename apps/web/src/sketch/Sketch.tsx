@@ -1,7 +1,7 @@
 // The hand-drawn layers: decorative, aria-hidden SVG over or behind real controls and text, which keep all the
 // meaning. Each shape is redrawn only when its element's size changes.
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BOX, inkLine, roughRect, type SketchPath } from './geometry.ts';
+import { BOX, cross, DELETE_MARK, inkLine, roughRect, type SketchPath } from './geometry.ts';
 
 /** An element's size, kept up to date as it resizes. */
 function useSize<T extends HTMLElement>() {
@@ -37,6 +37,18 @@ export function SketchBox({ seed, className = '', children }: { seed: number; cl
         <Paths paths={paths} />
       </svg>
     </span>
+  );
+}
+
+const DELETE_SIZE = 14;
+
+/** The sketched × of a delete button. */
+export function DeleteMark({ seed }: { seed: number }) {
+  const paths = useMemo(() => cross(DELETE_SIZE, seed, DELETE_MARK), [seed]);
+  return (
+    <svg aria-hidden="true" width={DELETE_SIZE} height={DELETE_SIZE}>
+      <Paths paths={paths} />
+    </svg>
   );
 }
 

@@ -1,4 +1,4 @@
-import { asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne } from 'drizzle-orm';
 import { generateKeyBetween } from 'fractional-indexing';
 import { Hono, type Context } from 'hono';
 import { isBlank, newTask, type Refusal, type Task } from '@fourfold/core';
@@ -50,6 +50,49 @@ export function createApp({ db, clock = () => new Date() }: AppOptions) {
         const row: TaskRow = { ...newTask(id, text, now.toISOString()), position: generateKeyBetween(null, top?.position ?? null) };
         tx.insert(tasks).values(row).run();
         return c.json(toTask(row), 201);
+      });
+    })
+
+    .patch('/tasks/:id', async (c) => {
+      const b = await body(c);
+      if (typeof b.text !== 'string') throw new BadRequest('text must be a string');
+      if (isBlank(b.text)) return refuse(c, 'empty_text');
+      const row = db.update(tasks).set({ text: b.text.trim() }).where(eq(tasks.id, c.req.param('id'))).returning().get();
+      return row ? c.json(toTask(row)) : refuse(c, 'task_not_found');
+    })
+
+    .delete('/tasks/:id', (c) => {
+      const id = c.req.param('id');
+      return db.transaction((tx) => {
+        const row = tx.select({ matrixDate: tasks.matrixDate }).from(tasks).where(eq(tasks.id, id)).get();
+        if (!row) return refuse(c, 'task_not_found');
+        if (row.matrixDate !== null) return refuse(c, 'task_already_placed');
+        tx.delete(tasks).where(eq(tasks.id, id)).run();
+        return c.body(null, 204);
+      });
+    })
+
+    .post('/tasks/:id/move', async (c) => {
+      const b = await body(c);
+      const { index } = b;
+      if (typeof index !== 'number' || !Number.isInteger(index) || index < 0) throw new BadRequest('index must be a whole number, 0 or more');
+      const id = c.req.param('id');
+      return db.transaction((tx) => {
+        const row = tx.select().from(tasks).where(eq(tasks.id, id)).get();
+        if (!row) return refuse(c, 'task_not_found');
+        if (row.matrixDate !== null) return refuse(c, 'task_already_placed');
+        // The Task List as it will be around the moved Task; a key between its new neighbours puts it at `index`
+        // while every other row keeps its key.
+        const others = tx
+          .select({ position: tasks.position })
+          .from(tasks)
+          .where(and(isNull(tasks.matrixDate), ne(tasks.id, id)))
+          .orderBy(asc(tasks.position))
+          .all();
+        const at = Math.min(index, others.length);
+        const position = generateKeyBetween(others[at - 1]?.position ?? null, others[at]?.position ?? null);
+        const moved = tx.update(tasks).set({ position }).where(eq(tasks.id, id)).returning().get()!;
+        return c.json(toTask(moved));
       });
     });
 

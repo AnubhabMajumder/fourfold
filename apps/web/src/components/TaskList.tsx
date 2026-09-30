@@ -1,7 +1,10 @@
 import { useState } from 'react';
-import { SEEDS } from '../sketch/geometry.ts';
-import { SketchBox } from '../sketch/Sketch.tsx';
+import type { Task } from '@fourfold/core';
+import { DropList, useDraggable } from '../drag/drag.tsx';
+import { SEEDS, seedOf } from '../sketch/geometry.ts';
+import { DeleteMark, SketchBox } from '../sketch/Sketch.tsx';
 import { useStore } from '../store.ts';
+import { TaskText } from './TaskText.tsx';
 
 export function TaskList() {
   const [state, store] = useStore();
@@ -23,13 +26,27 @@ export function TaskList() {
           <button type="submit">add</button>
         </SketchBox>
       </form>
-      <ul>
-        {state.taskList.map((t) => (
-          <li key={t.id} className="task-row">
-            {t.text}
-          </li>
-        ))}
-      </ul>
+      <DropList id="task-list" onDrop={(id, index) => store.move(id, index)}>
+        <ul>
+          {state.taskList.map((t) => (
+            <TaskRow key={t.id} task={t} />
+          ))}
+        </ul>
+      </DropList>
     </aside>
+  );
+}
+
+function TaskRow({ task }: { task: Task }) {
+  const [, store] = useStore();
+  const { isDragging, props } = useDraggable(task.id, task.text);
+  return (
+    <li className={`task-row${isDragging ? ' is-dragged' : ''}`} {...props}>
+      {/* Empty text deletes a Task in the Task List. */}
+      <TaskText text={task.text} onSave={(text) => store.edit(task.id, text)} />
+      <button type="button" className="delete" aria-label="Delete" onClick={() => store.remove(task.id)}>
+        <DeleteMark seed={seedOf(task.id)} />
+      </button>
+    </li>
   );
 }

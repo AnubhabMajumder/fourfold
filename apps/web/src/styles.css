@@ -152,15 +152,92 @@ ul {
   padding: 6px 14px;
 }
 
+.task-list {
+  display: flex;
+  flex-direction: column;
+}
+
 .task-row {
   display: flex;
   align-items: center;
+  gap: 8px;
   min-height: 34px;
   padding: 4px 0;
+  /* A long press on touch starts a drag, not the browser's callout. */
+  -webkit-touch-callout: none;
 }
 
 .task-row + .task-row {
   border-top: 1px solid var(--line-soft);
+}
+
+.task-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+input.task-text {
+  padding: 0;
+}
+
+/* The sketched ×: shown on hover (always, where there is no hover), turning to danger under the pointer. */
+.delete {
+  display: inline-flex;
+  padding: 4px;
+  color: var(--muted);
+  opacity: 0;
+}
+
+.task-row:hover .delete,
+.delete:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .delete {
+    opacity: 1;
+  }
+}
+
+.delete:hover {
+  color: var(--danger);
+}
+
+/* Dragging a Task to a new position */
+.drop-list {
+  position: relative;
+  flex: 1 0 auto;
+}
+
+.drop-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  margin-top: -1.5px;
+  border-radius: 2px;
+  background: var(--ink);
+  pointer-events: none;
+}
+
+.task-row.is-dragged {
+  opacity: 0.35;
+}
+
+.floating-card {
+  position: fixed;
+  z-index: 10;
+  padding: 4px 10px;
+  background: var(--panel);
+  box-shadow: 0 6px 18px var(--shadow);
+  transform: rotate(2deg);
+  pointer-events: none;
+}
+
+body.dragging {
+  cursor: grabbing;
+  user-select: none;
 }
 
 .matrix {

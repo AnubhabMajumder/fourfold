@@ -46,10 +46,21 @@ export type SketchOptions = Options & { seed: number };
 /** The pencil for sketched boxes: inputs, buttons, checkboxes. */
 export const BOX: Options = { roughness: 1.2, bowing: 1, strokeWidth: 1.5 };
 
+/** The pencil for the delete ×: one stroke per line, not rough.js's usual double stroke. */
+export const DELETE_MARK: Options = { roughness: 0.9, bowing: 0.6, strokeWidth: 1.6, disableMultiStroke: true };
+
 const paths = (drawable: ReturnType<typeof gen.rectangle>): SketchPath[] =>
   gen.toPaths(drawable).map((p) => ({ d: p.d, strokeWidth: p.strokeWidth }));
 
 export const roughRect = (x: number, y: number, w: number, h: number, o: SketchOptions) => paths(gen.rectangle(x, y, w, h, o));
+
+export const roughLine = (x1: number, y1: number, x2: number, y2: number, o: SketchOptions) => paths(gen.line(x1, y1, x2, y2, o));
+
+/** A sketched × filling a `size` square: two crossing strokes, each with its own seed. */
+export const cross = (size: number, seed: number, o: Options) => [
+  ...roughLine(2, 2, size - 2, size - 2, { ...o, seed }),
+  ...roughLine(size - 2, 2, 2, size - 2, { ...o, seed: seed + 1 }),
+];
 
 const avg = (a: number, b: number) => (a + b) / 2;
 

@@ -1,6 +1,6 @@
 import type { CalendarDate } from './dates.ts';
 import type { Matrix, Quadrant, Task } from './model.ts';
-import type { Refusal } from './rules.ts';
+import type { Destination, Refusal } from './rules.ts';
 
 /** The API refused the change (409): the rules forbid it. */
 export class RefusedError extends Error {
@@ -58,8 +58,8 @@ export function createClient(baseUrl = '', fetchImpl: Fetch = (input, init) => f
     write: (id: string, text: string) => call<Task>('POST', '/tasks', { id, text }),
     edit: (id: string, text: string) => call<Task>('PATCH', `/tasks/${id}`, { text }),
     remove: (id: string) => call<void>('DELETE', `/tasks/${id}`),
-    /** Moves a Task within its list, so that it ends up at `index` (counted from the top). */
-    move: (id: string, index: number) => call<Task>('POST', `/tasks/${id}/move`, { index }),
+    /** Moves a Task within the Task List, or within its Matrix, so that it ends up at `index` (counted from the top) of `to`. */
+    move: (id: string, to: Destination, index: number) => call<Task>('POST', `/tasks/${id}/move`, to === 'task-list' ? { index } : { index, ...to }),
     /** Places a Task at `position` in the Quadrant, or at its bottom without one. */
     place: (id: string, date: CalendarDate, quadrant: Quadrant, position?: number) =>
       call<Task>('POST', `/tasks/${id}/place`, { date, quadrant, position }),

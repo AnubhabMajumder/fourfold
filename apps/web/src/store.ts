@@ -9,10 +9,12 @@ import {
   QUADRANTS,
   RefusedError,
   refusalFor,
+  refusalToMove,
   refusalToPlace,
   stateOf,
   type CalendarDate,
   type Client,
+  type Destination,
   type Matrix,
   type Quadrant,
   type Task,
@@ -37,6 +39,27 @@ function updateTask(s: State, id: string, update: (t: Task) => Task): State {
   const each = (list: Task[]) => list.map((t) => (t.id === id ? update(t) : t));
   const quadrants = Object.fromEntries(QUADRANTS.map((q) => [q, each(s.matrix.quadrants[q])])) as Matrix['quadrants'];
   return { ...s, taskList: each(s.taskList), matrix: { ...s.matrix, quadrants } };
+}
+
+/** The list a Task is in, or would go to: the Task List, or one of the Quadrants of the Matrix on screen. */
+export type ListId = 'task-list' | Quadrant;
+
+/** The Tasks in a list on screen. */
+const listOf = (s: State, list: ListId) => (list === 'task-list' ? s.taskList : s.matrix.quadrants[list]);
+
+/**
+ * Takes the Task with `id` out of whichever list it's in on screen and puts it, changed by `as`, at `index` of `to`
+ * (counted once it has left its place). Leaves the state alone if the Task isn't on screen.
+ */
+function putTask(s: State, id: string, to: ListId, index: number, as: (t: Task) => Task): State {
+  const task = findTask(s, id);
+  if (!task) return s;
+  const without = (list: Task[]) => list.filter((t) => t.id !== id);
+  const quadrants = Object.fromEntries(QUADRANTS.map((q) => [q, without(s.matrix.quadrants[q])])) as Matrix['quadrants'];
+  const out: State = { ...s, taskList: without(s.taskList), matrix: { ...s.matrix, quadrants } };
+  const list = listOf(out, to);
+  const moved = [...list.slice(0, index), as(task), ...list.slice(index)];
+  return to === 'task-list' ? { ...out, taskList: moved } : { ...out, matrix: { ...out.matrix, quadrants: { ...quadrants, [to]: moved } } };
 }
 
 export class Store {
@@ -124,20 +147,21 @@ export class Store {
     this.refresh();
   }
 
-  /** Moves a Task List Task to the bottom of a Quadrant of the Matrix on screen. Returns whether the rules allow it. */
-  place(id: string, quadrant: Quadrant) {
+  /**
+   * Moves a Task List Task into a Quadrant of the Matrix on screen, at `position` there or at its bottom without one.
+   * Returns whether the rules allow it.
+   */
+  place(id: string, quadrant: Quadrant, position?: number) {
     this.followToday();
     const { date, taskList } = this.state;
     const task = taskList.find((t) => t.id === id);
     if (!task || refusalToPlace(task, date, new Date())) return false;
     this.change(
-      (s) => {
-        const t = s.taskList.find((x) => x.id === id);
-        if (!t || s.matrix.date !== date) return s;
-        const quadrants = { ...s.matrix.quadrants, [quadrant]: [...s.matrix.quadrants[quadrant], { ...t, matrixDate: date, quadrant }] };
-        return { ...s, taskList: s.taskList.filter((x) => x.id !== id), matrix: { ...s.matrix, quadrants } };
-      },
-      () => this.client.place(id, date, quadrant),
+      (s) =>
+        s.taskList.some((x) => x.id === id) && s.matrix.date === date
+          ? putTask(s, id, quadrant, position ?? s.matrix.quadrants[quadrant].length, (t) => ({ ...t, matrixDate: date, quadrant }))
+          : s,
+      () => this.client.place(id, date, quadrant, position),
     );
     return true;
   }
@@ -171,19 +195,16 @@ export class Store {
     );
   }
 
-  /** Sends an unfinished placed Task back to the top of the Task List, leaving no trace in the Matrix. */
-  returnToTaskList(id: string) {
+  /** Sends an unfinished placed Task back to the Task List, at `position` there or at its top without one, leaving no trace in the Matrix. */
+  returnToTaskList(id: string, position?: number) {
     const task = findTask(this.state, id);
     if (!task || refusalFor('return', task)) return;
     this.change(
-      (s) => {
-        const t = s.taskList.some((x) => x.id === id) ? undefined : findTask(s, id);
-        if (!t) return s;
-        const quadrants = Object.fromEntries(QUADRANTS.map((q) => [q, s.matrix.quadrants[q].filter((x) => x.id !== id)])) as Matrix['quadrants'];
-        const returned: Task = { ...t, matrixDate: null, quadrant: null, completedAt: null };
-        return { ...s, taskList: [returned, ...s.taskList], matrix: { ...s.matrix, quadrants } };
-      },
-      () => this.client.return(id),
+      (s) =>
+        s.taskList.some((x) => x.id === id)
+          ? s
+          : putTask(s, id, 'task-list', position ?? 0, (t) => ({ ...t, matrixDate: null, quadrant: null, completedAt: null })),
+      () => this.client.return(id, position),
     );
   }
 
@@ -195,19 +216,46 @@ export class Store {
     );
   }
 
-  /** Moves a Task within the Task List, so that it ends up at `index`. */
-  move(id: string, index: number) {
-    const from = this.state.taskList.findIndex((t) => t.id === id);
-    if (from < 0 || from === index) return;
-    this.changeTaskList(
-      (list) => {
-        const task = list.find((t) => t.id === id);
-        if (!task) return list;
-        const rest = list.filter((t) => t !== task);
-        return [...rest.slice(0, index), task, ...rest.slice(index)];
+  /** Moves a Task within the list it's in, or into another Quadrant of its Matrix, so that it ends up at `index` of `to`. */
+  move(id: string, to: ListId, index: number) {
+    const task = findTask(this.state, id);
+    const destination = this.destination(to);
+    if (!task || refusalToMove(task, destination)) return;
+    if (listOf(this.state, to)[index]?.id === id) return;
+    const date = this.state.matrix.date;
+    this.change(
+      (s) => {
+        const t = findTask(s, id);
+        if (!t || refusalToMove(t, this.destination(to, s))) return s;
+        return putTask(s, id, to, index, (x) => (to === 'task-list' ? x : { ...x, quadrant: to }));
       },
-      () => this.client.move(id, index),
+      () => this.client.move(id, to === 'task-list' ? to : { date, quadrant: to }, index),
     );
+  }
+
+  /** What dropping the Task with `id` into `to` does, at the position it's dropped at; `null` if the rules refuse it. */
+  private dropping(id: string, to: ListId): ((index: number) => void) | null {
+    const task = findTask(this.state, id);
+    if (!task) return null;
+    if (refusalToMove(task, this.destination(to)) === null) return (index) => this.move(id, to, index);
+    if (to === 'task-list') return refusalFor('return', task) ? null : (index) => this.returnToTaskList(id, index);
+    // Checked against the Matrix on screen, so that a Task lands where it's dropped: once midnight has passed, the
+    // Matrix still showing yesterday no longer takes Placements.
+    return refusalToPlace(task, this.state.matrix.date, new Date()) ? null : (index) => this.place(id, to, index);
+  }
+
+  /** Whether the rules let the Task with `id` be dropped into `to`: a target that doesn't accept isn't offered. */
+  canDrop(id: string, to: ListId) {
+    return this.dropping(id, to) !== null;
+  }
+
+  /** Drops the Task with `id` at `index` of `to`: a move, a Placement or a return, whichever the rules allow. */
+  drop(id: string, to: ListId, index: number) {
+    this.dropping(id, to)?.(index);
+  }
+
+  private destination(to: ListId, s: State = this.state): Destination {
+    return to === 'task-list' ? to : { date: s.matrix.date, quadrant: to };
   }
 }
 

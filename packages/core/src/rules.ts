@@ -1,5 +1,5 @@
 import { localDate, type CalendarDate } from './dates.ts';
-import type { Task } from './model.ts';
+import type { Quadrant, Task } from './model.ts';
 
 /**
  * Why a change was refused. The API answers 409 with one of these; the web app uses the same checks to decide
@@ -13,6 +13,8 @@ export type Refusal =
   | 'task_already_placed'
   | 'date_not_placeable'
   | 'task_not_placed'
+  /** A placed Task moves only within its own Matrix: there is no direct move from one Matrix to another. */
+  | 'task_in_another_matrix'
   | 'task_not_completed'
   | 'task_already_completed'
   | 'completed_task_not_returnable'
@@ -70,4 +72,19 @@ export function refusalToPlace(task: Pick<Task, 'matrixDate'>, date: CalendarDat
   if (task.matrixDate !== null) return 'task_already_placed';
   if (!isPlaceable(date, now)) return 'date_not_placeable';
   return null;
+}
+
+/** Where a Task can be put: the Task List, or a Quadrant of a date's Matrix. */
+export type Destination = 'task-list' | { date: CalendarDate; quadrant: Quadrant };
+
+/**
+ * Why moving `task` to a position in `to` is refused, or `null` if the rules allow it. A move keeps a Task in the
+ * Task List or in its own Matrix: getting from one to the other takes a Placement or a return.
+ */
+export function refusalToMove(task: Pick<Task, 'matrixDate' | 'completedAt'>, to: Destination): Refusal | null {
+  const refusal = refusalFor('move', task);
+  if (refusal) return refusal;
+  if (to === 'task-list') return task.matrixDate === null ? null : 'task_already_placed';
+  if (task.matrixDate === null) return 'task_not_placed';
+  return task.matrixDate === to.date ? null : 'task_in_another_matrix';
 }

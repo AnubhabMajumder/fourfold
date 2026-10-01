@@ -256,7 +256,7 @@ input.task-text {
   pointer-events: none;
 }
 
-.task-row.is-dragged {
+.is-dragged {
   opacity: 0.35;
 }
 
@@ -322,6 +322,13 @@ body.dragging {
   min-height: 0;
 }
 
+/* A Quadrant takes drops anywhere in its frame; its list scrolls inside. */
+.quadrant .drop-list {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
 .quadrant ul {
   /* Positioned, so the Tasks are drawn over their Quadrant's hatching. */
   position: relative;
@@ -337,6 +344,7 @@ body.dragging {
   align-items: flex-start;
   gap: 10px;
   padding: 4px 0;
+  -webkit-touch-callout: none;
 }
 
 /* A placed Task's checkbox: the real one is hidden, and its sketched box is drawn in its place. */

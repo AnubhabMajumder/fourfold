@@ -38,7 +38,7 @@ export function TaskList() {
           <button type="submit">add</button>
         </SketchBox>
       </form>
-      <DropList id="task-list" onDrop={(id, index) => store.move(id, index)}>
+      <DropList id="task-list" accepts={(id) => store.canDrop(id, 'task-list')} onDrop={(id, index) => store.drop(id, 'task-list', index)}>
         <ul>
           {state.taskList.map((t, i) => (
             <TaskRow

@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, ne } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import { generateKeyBetween } from 'fractional-indexing';
 import { Hono, type Context } from 'hono';
 import {
@@ -8,8 +8,10 @@ import {
   newTask,
   QUADRANTS,
   refusalFor,
+  refusalToMove,
   refusalToPlace,
   type CalendarDate,
+  type Destination,
   type Quadrant,
   type Refusal,
   type Task,
@@ -29,6 +31,11 @@ const toTask = ({ position: _, ...t }: TaskRow): Task => t;
 function calendarDate(s: unknown): CalendarDate {
   if (typeof s !== 'string' || !isCalendarDate(s)) throw new BadRequest('date must be a calendar date, YYYY-MM-DD');
   return s;
+}
+
+function quadrantOf(s: unknown): Quadrant {
+  if (!QUADRANTS.includes(s as Quadrant)) throw new BadRequest(`quadrant must be one of ${QUADRANTS.join(', ')}`);
+  return s as Quadrant;
 }
 
 /** The local API: every change is checked against the rules in `core`, and refused with 409 if they forbid it. */
@@ -65,13 +72,6 @@ export function createApp({ db, clock = () => new Date() }: AppOptions) {
   };
 
   const refuse = (c: Context, reason: Refusal) => c.json({ reason }, 409);
-
-  /** Why the Task can't be changed as a Task in the Task List, if it can't. */
-  function notInTaskList(tx: Pick<Db, 'select'>, id: string): Refusal | null {
-    const row = tx.select({ matrixDate: tasks.matrixDate }).from(tasks).where(eq(tasks.id, id)).get();
-    if (!row) return 'task_not_found';
-    return row.matrixDate === null ? null : 'task_already_placed';
-  }
 
   const api = new Hono()
     .onError((err, c) => (err instanceof BadRequest ? c.json({ error: err.message }, 400) : c.json({ error: 'Internal error' }, 500)))
@@ -123,24 +123,28 @@ export function createApp({ db, clock = () => new Date() }: AppOptions) {
       }),
     )
 
+    /**
+     * Body: `index`, where the Task ends up in its list, counted from the top; and, for a placed Task, the `date` and
+     * `quadrant` it moves to, which must be in its own Matrix.
+     */
     .post('/tasks/:id/move', async (c) => {
       const b = await body(c);
-      const { index } = b;
-      if (typeof index !== 'number' || !Number.isInteger(index) || index < 0) throw new BadRequest('index must be a whole number, 0 or more');
+      const at = index(b.index, 'index');
+      if (at === undefined) throw new BadRequest('index must be an index, 0 or more');
+      if ((b.date === undefined) !== (b.quadrant === undefined)) throw new BadRequest('date and quadrant go together');
+      const to: Destination = b.date === undefined ? 'task-list' : { date: calendarDate(b.date), quadrant: quadrantOf(b.quadrant) };
       const id = c.req.param('id');
       return db.transaction((tx) => {
-        const refusal = notInTaskList(tx, id);
+        const task = findTask(tx, id);
+        if (!task) return refuse(c, 'task_not_found');
+        const refusal = refusalToMove(task, to);
         if (refusal) return refuse(c, refusal);
-        // The Task List as it will be around the moved Task; a key between its new neighbours puts it at `index`
-        // while every other row keeps its key.
-        const others = tx
-          .select({ position: tasks.position })
-          .from(tasks)
-          .where(and(isNull(tasks.matrixDate), ne(tasks.id, id)))
-          .orderBy(asc(tasks.position))
-          .all();
-        const position = keyAt(others.map((t) => t.position), index);
-        const moved = tx.update(tasks).set({ position }).where(eq(tasks.id, id)).returning().get()!;
+        // The list as it will be around the moved Task; a key between its new neighbours puts it at `index` while
+        // every other row keeps its key.
+        const list = to === 'task-list' ? taskList(tx) : quadrant(tx, to.date, to.quadrant);
+        const others = list.all().filter((t) => t.id !== id);
+        const position = keyAt(others.map((t) => t.position), at);
+        const moved = tx.update(tasks).set({ quadrant: to === 'task-list' ? null : to.quadrant, position }).where(eq(tasks.id, id)).returning().get()!;
         return c.json(toTask(moved));
       });
     })
@@ -149,8 +153,7 @@ export function createApp({ db, clock = () => new Date() }: AppOptions) {
     .post('/tasks/:id/place', async (c) => {
       const b = await body(c);
       const date = calendarDate(b.date);
-      if (!QUADRANTS.includes(b.quadrant as Quadrant)) throw new BadRequest(`quadrant must be one of ${QUADRANTS.join(', ')}`);
-      const q = b.quadrant as Quadrant;
+      const q = quadrantOf(b.quadrant);
       const at = index(b.position, 'position');
       const now = clock();
       return db.transaction((tx) => {

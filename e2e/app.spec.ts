@@ -1,4 +1,5 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
+import type { Quadrant } from '@fourfold/core';
 import { BASE_URL, expect, test, type apiClient } from './fixtures.ts';
 
 type Api = ReturnType<typeof apiClient>;
@@ -26,15 +27,23 @@ async function startEdit(page: Page, text: string, replacement: string) {
   return edit;
 }
 
-/** Presses on a Task and drags it with the mouse to just above or below another, leaving the button down. */
-async function dragOver(page: Page, text: string, target: string, where: 'above' | 'below') {
-  const from = (await row(page, text).boundingBox())!;
-  const to = (await row(page, target).boundingBox())!;
-  await page.mouse.move(from.x + 20, from.y + from.height / 2);
+/**
+ * Presses on a Task and drags it with the mouse to just above or below another element (or into its middle),
+ * leaving the button down.
+ */
+async function drag(page: Page, task: Locator, target: Locator, where: 'above' | 'below' | 'into') {
+  // Pressed on its text: its buttons and checkbox don't start a drag.
+  const from = (await task.locator('.task-text').boundingBox())!;
+  const to = (await target.boundingBox())!;
+  await page.mouse.move(from.x + 10, from.y + from.height / 2);
   await page.mouse.down();
-  await page.mouse.move(from.x + 30, from.y + from.height / 2 + 6, { steps: 3 });
-  await page.mouse.move(to.x + 30, where === 'above' ? to.y + 3 : to.y + to.height - 3, { steps: 6 });
+  await page.mouse.move(from.x + 20, from.y + from.height / 2 + 6, { steps: 3 });
+  const y = where === 'above' ? to.y + 3 : where === 'below' ? to.y + to.height - 3 : to.y + to.height / 2;
+  await page.mouse.move(to.x + 30, y, { steps: 6 });
 }
+
+/** Drags a Task List Task to just above or below another, leaving the button down. */
+const dragOver = (page: Page, text: string, target: string, where: 'above' | 'below') => drag(page, row(page, text), row(page, target), where);
 
 const matrix = (page: Page) => page.getByRole('region', { name: /^Matrix for / });
 
@@ -421,11 +430,11 @@ test.describe('the Task List', () => {
     await expect(rows(app)).toHaveText(['a', 'c', 'b', 'd']);
   });
 
-  test('snaps a dragged Task back when dropped outside the Task List or with Esc', async ({ app, api }) => {
+  test('snaps a dragged Task back when dropped outside any list or with Esc', async ({ app, api }) => {
     await api.write('a', 'b');
     await app.reload();
     await dragOver(app, 'a', 'b', 'above');
-    const box = (await matrix(app).boundingBox())!;
+    const box = (await app.getByRole('banner').boundingBox())!;
     await app.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
     await expect(taskList(app).locator('.drop-line')).toHaveCount(0);
     await app.mouse.up();
@@ -713,5 +722,107 @@ test.describe('working with placed Tasks', () => {
     await expect(box).toBeChecked();
     await expect(strike(app, 'Buy milk')).toHaveCount(1);
     await expect(placed(app, 'Buy milk').locator('.drawing-on, .rubbing-out')).toHaveCount(0);
+  });
+});
+
+test.describe('dragging into, within and out of the Matrix', () => {
+  const TODAY = '2026-09-24';
+  const quadrant = (page: Page, name: string) => matrix(page).getByRole('region', { name, exact: true });
+  const placed = (page: Page, text: string) => matrix(page).getByRole('listitem').filter({ hasText: text });
+  const quadrantRows = (page: Page, name: string) => quadrant(page, name).getByRole('listitem');
+  const apiQuadrant = async (api: Api, q: Quadrant) => (await api.matrix(TODAY))?.quadrants[q].map((t) => t.text);
+
+  /** Writes Tasks and places them, in order, in Important + Urgent, then opens the app afresh. */
+  async function placeAll(app: Page, api: Api, ...texts: string[]) {
+    for (const id of await api.write(...texts)) await api.place(id, TODAY, 'important-urgent');
+    await app.reload();
+  }
+
+  test('drags a Task from the Task List into a Quadrant, landing at the drop line', async ({ app, api }) => {
+    await api.write('Waiting');
+    await placeAll(app, api, 'a', 'b');
+    await drag(app, row(app, 'Waiting'), placed(app, 'b'), 'above');
+    const line = quadrant(app, 'Important + Urgent').locator('.drop-line');
+    await expect(line).toBeVisible();
+    await expect(app.locator('.floating-card')).toHaveText('Waiting');
+    await app.mouse.up();
+    await expect(line).toHaveCount(0);
+    await expect(rows(app)).toHaveCount(0);
+    await expect(quadrantRows(app, 'Important + Urgent')).toHaveText(['a', 'Waiting', 'b']);
+    await expect.poll(() => apiQuadrant(api, 'important-urgent')).toEqual(['a', 'Waiting', 'b']);
+  });
+
+  test('drags a Task into an empty Quadrant, making the first Placement', async ({ app, api }) => {
+    await api.write('Buy milk');
+    await app.reload();
+    await drag(app, row(app, 'Buy milk'), quadrant(app, 'Not Important + Urgent'), 'into');
+    await app.mouse.up();
+    await expect(quadrantRows(app, 'Not Important + Urgent')).toHaveText(['Buy milk']);
+    await expect.poll(() => apiQuadrant(api, 'not-important-urgent')).toEqual(['Buy milk']);
+  });
+
+  test('drags a placed Task within its Quadrant and into another, Completed ones too', async ({ app, api }) => {
+    await placeAll(app, api, 'a', 'b', 'c');
+    await drag(app, placed(app, 'c'), placed(app, 'a'), 'above');
+    await app.mouse.up();
+    await expect(quadrantRows(app, 'Important + Urgent')).toHaveText(['c', 'a', 'b']);
+    await expect.poll(() => apiQuadrant(api, 'important-urgent')).toEqual(['c', 'a', 'b']);
+
+    await matrix(app).getByRole('checkbox', { name: 'a', exact: true }).check();
+    await drag(app, placed(app, 'a'), quadrant(app, 'Important + Not Urgent'), 'into');
+    await app.mouse.up();
+    await drag(app, placed(app, 'b'), placed(app, 'a'), 'above');
+    await app.mouse.up();
+    await expect(quadrantRows(app, 'Important + Urgent')).toHaveText(['c']);
+    await expect(quadrantRows(app, 'Important + Not Urgent')).toHaveText(['b', 'a']);
+    await expect.poll(() => apiQuadrant(api, 'important-not-urgent')).toEqual(['b', 'a']);
+    expect((await api.matrix(TODAY))!.quadrants['important-not-urgent'][1]!.completedAt).not.toBeNull();
+    await app.reload();
+    await expect(quadrantRows(app, 'Important + Not Urgent')).toHaveText(['b', 'a']);
+  });
+
+  test('drags an unfinished Task back to the Task List, landing at the drop line', async ({ app, api }) => {
+    await api.write('x', 'y');
+    await placeAll(app, api, 'Buy milk', 'Call Mum');
+    await expect(rows(app)).toHaveText(['y', 'x']);
+    await drag(app, placed(app, 'Buy milk'), row(app, 'x'), 'above');
+    await expect(taskList(app).locator('.drop-line')).toBeVisible();
+    await app.mouse.up();
+    await expect(rows(app)).toHaveText(['y', 'Buy milk', 'x']);
+    await expect(quadrantRows(app, 'Important + Urgent')).toHaveText(['Call Mum']);
+    await expect.poll(() => apiTexts(api)).toEqual(['y', 'Buy milk', 'x']);
+  });
+
+  test('does not offer the Task List to a Completed Task, which snaps back', async ({ app, api }) => {
+    await api.write('x');
+    await placeAll(app, api, 'Buy milk');
+    await matrix(app).getByRole('checkbox', { name: 'Buy milk', exact: true }).check();
+    await drag(app, placed(app, 'Buy milk'), row(app, 'x'), 'above');
+    await expect(app.locator('.floating-card')).toHaveText('Buy milk');
+    await expect(taskList(app).locator('.drop-line')).toHaveCount(0);
+    await app.mouse.up();
+    await expect(rows(app)).toHaveText(['x']);
+    await expect(quadrantRows(app, 'Important + Urgent')).toHaveText(['Buy milk']);
+    expect(await apiTexts(api)).toEqual(['x']);
+  });
+
+  test('snaps a dragged Task back if the API refuses it', async ({ app, api }) => {
+    await placeAll(app, api, 'a', 'b');
+    await app.route('**/api/tasks/*/move', (route) => route.fulfill({ status: 409, json: { reason: 'task_in_another_matrix' } }));
+    await drag(app, placed(app, 'b'), placed(app, 'a'), 'above');
+    const sent = app.waitForRequest('**/api/tasks/*/move');
+    await app.mouse.up();
+    await sent;
+    await expect(quadrantRows(app, 'Important + Urgent')).toHaveText(['a', 'b']);
+  });
+
+  test('does not start a drag from the checkbox', async ({ app, api }) => {
+    await placeAll(app, api, 'a', 'b');
+    const box = (await placed(app, 'b').locator('.checkbox').boundingBox())!;
+    await app.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await app.mouse.down();
+    await app.mouse.move(box.x + box.width / 2, box.y - 40, { steps: 5 });
+    await expect(app.locator('.floating-card')).toHaveCount(0);
+    await app.mouse.up();
   });
 });

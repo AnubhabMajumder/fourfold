@@ -14,7 +14,7 @@ export function TaskText({
   /** The id of the text's element, for whatever it labels. */
   id?: string;
   text: string;
-  strike?: { seed: number; done: boolean };
+  strike?: { seed: number; done: boolean; drawOn: boolean };
   onSave: (text: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -22,7 +22,7 @@ export function TaskText({
     return (
       <span id={id} className="task-text" onDoubleClick={() => setEditing(true)}>
         {strike ? (
-          <Strike seed={strike.seed} done={strike.done}>
+          <Strike seed={strike.seed} done={strike.done} drawOn={strike.drawOn}>
             {text}
           </Strike>
         ) : (

@@ -186,14 +186,16 @@ type StrikePhase = 'none' | 'drawn' | 'drawing' | 'rubbing-out';
  * put an SVG turbulence or displacement filter on the text to make it look hand-drawn: filters warp the glyphs, hurt
  * readability, and don't exist in react-native-svg, which a later mobile app would draw with.
  */
-export function Strike({ seed, done, children }: { seed: number; done: boolean; children: ReactNode }) {
+/** `drawOn`: whether the user has just completed the Task, so that the strike is drawn on rather than shown already drawn. */
+export function Strike({ seed, done, drawOn, children }: { seed: number; done: boolean; drawOn: boolean; children: ReactNode }) {
   const reduced = useReducedMotion();
   const [was, setWas] = useState(done);
   const [phase, setPhase] = useState<StrikePhase>(done ? 'drawn' : 'none');
   if (done !== was) {
-    // Under reduced motion the strike appears already drawn, and goes at once.
+    // Under reduced motion the strike appears already drawn, and goes at once. It's drawn on only when the user completes
+    // the Task: not on load, nor when a refused un-complete snaps back, nor when a refresh finds it Completed.
     setWas(done);
-    setPhase(done ? (reduced ? 'drawn' : 'drawing') : reduced ? 'none' : 'rubbing-out');
+    setPhase(done ? (reduced || !drawOn ? 'drawn' : 'drawing') : reduced ? 'none' : 'rubbing-out');
   }
   const shown = phase !== 'none' && !(reduced && phase === 'rubbing-out');
 

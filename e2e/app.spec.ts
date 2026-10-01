@@ -696,4 +696,22 @@ test.describe('working with placed Tasks', () => {
     release();
     await expect(box).not.toBeChecked();
   });
+
+  test('shows the strike already drawn when a refused un-tick snaps back, without drawing it on again', async ({ app, api }) => {
+    await placeAll(app, api, 'Buy milk');
+    const box = checkbox(app, 'Buy milk');
+    await box.check();
+    await expect.poll(() => completedAt(api, 'Buy milk')).not.toBeNull();
+    let release!: () => void;
+    const answered = new Promise<void>((r) => (release = r));
+    await app.route('**/api/tasks/*/uncomplete', async (route) => {
+      await answered;
+      await route.fulfill({ status: 409, json: { reason: 'task_not_completed' } });
+    });
+    await box.uncheck();
+    release();
+    await expect(box).toBeChecked();
+    await expect(strike(app, 'Buy milk')).toHaveCount(1);
+    await expect(placed(app, 'Buy milk').locator('.drawing-on, .rubbing-out')).toHaveCount(0);
+  });
 });

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { formatDate, QUADRANT_NAMES, QUADRANTS, stateOf, type Task } from '@fourfold/core';
 import { SEEDS, seedOf } from '../sketch/geometry.ts';
 import { CheckboxMark, Dividers, Hatching, MiniList } from '../sketch/Sketch.tsx';
@@ -45,6 +46,8 @@ function PlacedTask({ task }: { task: Task }) {
   const seed = seedOf(task.id);
   const textId = `text-${task.id}`;
   const completed = stateOf(task) === 'completed';
+  // Whether the user last ticked (rather than unticked) the checkbox: only that draws the strike on.
+  const [ticked, setTicked] = useState(false);
   return (
     <li className="placed-task">
       <label className="checkbox">
@@ -52,12 +55,15 @@ function PlacedTask({ task }: { task: Task }) {
           type="checkbox"
           checked={completed}
           aria-labelledby={textId}
-          onChange={(e) => store.setCompleted(task.id, e.currentTarget.checked)}
+          onChange={(e) => {
+            setTicked(e.currentTarget.checked);
+            store.setCompleted(task.id, e.currentTarget.checked);
+          }}
         />
         <CheckboxMark seed={seed} checked={completed} />
       </label>
       {/* Empty text leaves a placed Task's text as it was. */}
-      <TaskText id={textId} text={task.text} strike={{ seed, done: completed }} onSave={(text) => store.edit(task.id, text)} />
+      <TaskText id={textId} text={task.text} strike={{ seed, done: completed, drawOn: ticked }} onSave={(text) => store.edit(task.id, text)} />
       {!completed && (
         <button type="button" className="icon-button return" aria-label="Return to the Task List" onClick={() => store.returnToTaskList(task.id)}>
           <MiniList seed={seed + 7} />

@@ -59,6 +59,20 @@ test.describe('getting around Matrices', () => {
     await expect(previous(app)).toBeEnabled();
   });
 
+  test('the Task List can still be reordered while "No earlier Matrix" shows', async ({ app, api }) => {
+    await api.write('Buy milk', 'Call mum');
+    await app.reload();
+    await expect(rows(app)).toHaveText(['Call mum', 'Buy milk']);
+    await previous(app).click();
+    await expect(noEarlier(app)).toBeVisible();
+
+    await drag(app, row(app, 'Buy milk'), row(app, 'Call mum'), 'above');
+    await app.mouse.up();
+
+    await expect(rows(app)).toHaveText(['Buy milk', 'Call mum']);
+    await expect.poll(async () => (await api.taskList()).map((t) => t.text)).toEqual(['Buy milk', 'Call mum']);
+  });
+
   test.describe('days after Matrices were made', () => {
     // The Matrices are made on the 20th and 21st; the page is opened on the 24th.
     test.use({ startAt: at('2026-09-21', '05:00'), pageAt: at(TODAY) });
@@ -126,6 +140,50 @@ test.describe('getting around Matrices', () => {
       await expect(quadrant(app, 'Important + Urgent').getByRole('listitem')).toHaveText(['Buy milk']);
       await expect.poll(() => apiQuadrant(api, '2026-09-25')).toEqual(['Buy milk']);
       expect(await api.matrixDates()).toEqual(['2026-09-25']);
+    });
+
+    /** Holds every request to `path` until the returned function is called. */
+    async function hold(page: Page, path: string) {
+      let release!: () => void;
+      const released = new Promise<void>((r) => (release = r));
+      await page.route(path, async (route) => {
+        await released;
+        await route.continue();
+      });
+      return release;
+    }
+
+    test('a Placement still being sent stays out of the Task List when another date is chosen', async ({ app, api }) => {
+      await api.write('Buy milk', 'Call mum');
+      await app.reload();
+      const release = await hold(app, '**/api/tasks/*/place');
+      await row(app, 'Buy milk').getByRole('button', { name: 'Place in the Matrix' }).click();
+      await app.getByRole('button', { name: 'Place in Important + Urgent' }).click();
+      await next(app).click();
+      await expect(matrix(app)).toHaveAccessibleName('Matrix for Friday, 25 September');
+      await expect(rows(app)).toHaveText(['Call mum']);
+      await expect(previous(app)).toBeEnabled();
+
+      release();
+      await expect.poll(() => apiQuadrant(api, TODAY)).toEqual(['Buy milk']);
+      await expect(rows(app)).toHaveText(['Call mum']);
+      await previous(app).click();
+      await expect(quadrant(app, 'Important + Urgent').getByRole('listitem')).toHaveText(['Buy milk']);
+    });
+
+    test('a return still being sent shows in the Task List when another date is chosen', async ({ app, api }) => {
+      await placeAll(api, TODAY, 'Buy milk');
+      await api.write('Call mum');
+      await app.reload();
+      const release = await hold(app, '**/api/tasks/*/return');
+      await placed(app, 'Buy milk').getByRole('button', { name: 'Return to the Task List' }).click();
+      await next(app).click();
+      await expect(matrix(app)).toHaveAccessibleName('Matrix for Friday, 25 September');
+      await expect(rows(app)).toHaveText(['Buy milk', 'Call mum']);
+
+      release();
+      await expect.poll(() => api.matrixDates()).toEqual([]);
+      await expect(rows(app)).toHaveText(['Buy milk', 'Call mum']);
     });
   });
 });

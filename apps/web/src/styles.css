@@ -471,3 +471,43 @@ body.dragging {
   display: block;
   overflow: visible;
 }
+
+/* The "isn't running" card, over the dimmed page, which takes no changes while it's up. */
+.app[inert] {
+  opacity: 0.45;
+  filter: grayscale(0.4);
+}
+
+.not-running {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+}
+
+.not-running-card {
+  background: var(--panel);
+  max-width: 420px;
+}
+
+.not-running-card [role='alertdialog'] {
+  padding: 26px 34px;
+  text-align: center;
+  outline: none;
+}
+
+.not-running-card h2 {
+  font: 700 34px/1 Caveat, cursive;
+  margin-bottom: 12px;
+}
+
+.not-running-card p {
+  margin: 4px 0;
+}
+
+.not-running-card .faint {
+  color: var(--muted);
+  font-style: italic;
+}

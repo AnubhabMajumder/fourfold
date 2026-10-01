@@ -11,6 +11,8 @@ import { Store, StoreContext } from './store.ts';
 
 const store = new Store(createClient());
 store.refresh();
+// Switching back to the window brings it up to date, so that two windows don't drift apart.
+window.addEventListener('focus', () => store.refresh());
 
 // Load the fonts before the first render: a late swap would re-wrap Task text under strikes already drawn to fit it.
 const FONTS = ['400 19px Kalam', '700 19px Kalam', '700 26px Caveat'];

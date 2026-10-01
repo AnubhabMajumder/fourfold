@@ -14,6 +14,7 @@ export const SEEDS = {
   input: 21,
   add: 22,
   dividers: 31,
+  notRunning: 41,
   /** The hatching of an all-Completed Quadrant; each Quadrant adds its index in QUADRANTS. */
   hatching: 51,
 } as const;

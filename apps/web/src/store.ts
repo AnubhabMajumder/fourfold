@@ -12,6 +12,7 @@ import {
   refusalToMove,
   refusalToPlace,
   stateOf,
+  UnreachableError,
   type CalendarDate,
   type Client,
   type Destination,
@@ -25,7 +26,12 @@ export type State = {
   date: CalendarDate;
   taskList: Task[];
   matrix: Matrix;
+  /** Whether the API has stopped answering: the page shows the "isn't running" card and takes no changes. */
+  unreachable: boolean;
 };
+
+/** How often, while the API isn't answering, the app checks whether it's back. */
+const RECHECK_MS = 3_000;
 
 /** A change as the screen shows it. It must leave the state alone if it no longer applies. */
 type Change = (s: State) => State;
@@ -72,10 +78,12 @@ export class Store {
   private listeners = new Set<() => void>();
   private queue: Promise<void> = Promise.resolve();
   private readonly client: Client;
+  /** The next check on an API that isn't answering, if one is due. */
+  private recheck: ReturnType<typeof setTimeout> | undefined;
 
   constructor(client: Client, today: CalendarDate = localDate(new Date())) {
     this.client = client;
-    this.confirmed = this.state = { date: today, taskList: [], matrix: emptyMatrix(today) };
+    this.confirmed = this.state = { date: today, taskList: [], matrix: emptyMatrix(today), unreachable: false };
   }
 
   subscribe = (listener: () => void) => {
@@ -93,8 +101,12 @@ export class Store {
     this.queue = this.queue.then(job).catch(() => {});
   }
 
-  /** Shows a change at once and sends it; it stays on screen only if the API accepts it. */
+  /**
+   * Shows a change at once and sends it; it stays on screen only if the API accepts it. While the API isn't
+   * answering, the page takes no changes.
+   */
   private change(change: Change, send: () => Promise<unknown>) {
+    if (this.confirmed.unreachable) return;
     this.pending.push(change);
     this.show();
     this.enqueue(async () => {
@@ -104,6 +116,7 @@ export class Store {
       } catch (err) {
         // Refused: what's on screen is out of date, so fetch what the API actually holds.
         if (err instanceof RefusedError) this.refresh();
+        if (err instanceof UnreachableError) this.showNotRunning();
       } finally {
         this.pending.splice(this.pending.indexOf(change), 1);
         this.show();
@@ -116,14 +129,36 @@ export class Store {
     this.change((s) => ({ ...s, taskList: apply(s.taskList) }), send);
   }
 
-  /** Fetches the Task List and the Matrix on screen; changes not yet sent stay on top of what comes back. */
+  /**
+   * Fetches everything on screen: the Task List and the Matrix being viewed. Changes not yet sent stay on top of what
+   * comes back. If the API doesn't answer, the "isn't running" card goes up; once it answers, the card comes down.
+   */
   refresh() {
     this.enqueue(async () => {
       const date = this.confirmed.date;
-      const [taskList, matrix] = await Promise.all([this.client.taskList(), this.client.matrix(date)]);
-      this.confirmed = { ...this.confirmed, taskList, matrix: matrix ?? emptyMatrix(date) };
-      this.show();
+      try {
+        const [taskList, matrix] = await Promise.all([this.client.taskList(), this.client.matrix(date)]);
+        this.confirmed = { ...this.confirmed, taskList, matrix: matrix ?? emptyMatrix(date), unreachable: false };
+        clearTimeout(this.recheck);
+        this.recheck = undefined;
+      } catch (err) {
+        // While the card is up, any failure (say, an API still starting up) means checking again later.
+        if (!(err instanceof UnreachableError) && !this.confirmed.unreachable) throw err;
+        this.showNotRunning();
+      } finally {
+        this.show();
+      }
     });
+  }
+
+  /** The API has stopped answering: puts the card up, and checks every few seconds until the API is back. */
+  private showNotRunning() {
+    this.confirmed = { ...this.confirmed, unreachable: true };
+    // Only while the card is up: otherwise Fourfold never polls the API.
+    this.recheck ??= setTimeout(() => {
+      this.recheck = undefined;
+      this.refresh();
+    }, RECHECK_MS);
   }
 
   /** Adds a Task to the top of the Task List at once, and sends it. Returns whether it was added. */

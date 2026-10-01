@@ -14,6 +14,8 @@ export const SEEDS = {
   input: 21,
   add: 22,
   dividers: 31,
+  /** The hatching of an all-Completed Quadrant; each Quadrant adds its index in QUADRANTS. */
+  hatching: 51,
 } as const;
 
 /** A seed from a stable id (FNV-1a), in rough.js's range 1 … 2^31 − 2. */
@@ -52,6 +54,20 @@ export const ICON: Options = { roughness: 0.8, bowing: 0.5, strokeWidth: 1.4 };
 /** The pencil for the delete ×: one stroke per line, not rough.js's usual double stroke. */
 export const DELETE_MARK: Options = { roughness: 0.9, bowing: 0.6, strokeWidth: 1.6, disableMultiStroke: true };
 
+/** The pencil for a checkbox's tick, drawn in the strike colour. */
+export const TICK: Options = { roughness: 1.2, strokeWidth: 2.4 };
+
+/** The hatching across an all-Completed Quadrant, in the strike colour. */
+export const HATCHING: Options = {
+  roughness: 1.4,
+  stroke: 'none',
+  fill: 'currentColor',
+  fillStyle: 'hachure',
+  hachureAngle: -41,
+  hachureGap: 16,
+  fillWeight: 1.4,
+};
+
 const paths = (drawable: ReturnType<typeof gen.rectangle>): SketchPath[] =>
   gen
     .toPaths(drawable)
@@ -61,6 +77,29 @@ const paths = (drawable: ReturnType<typeof gen.rectangle>): SketchPath[] =>
 export const roughRect = (x: number, y: number, w: number, h: number, o: SketchOptions) => paths(gen.rectangle(x, y, w, h, o));
 
 const roughLine = (x1: number, y1: number, x2: number, y2: number, o: SketchOptions) => paths(gen.line(x1, y1, x2, y2, o));
+
+/** A checkbox's tick filling a `size` square: one polyline, short stroke down then long stroke up. */
+export const tick = (size: number, seed: number) =>
+  paths(
+    gen.linearPath(
+      [
+        [size * 0.17, size * 0.54],
+        [size * 0.42, size * 0.83],
+        [size * 0.92, size * 0.08],
+      ],
+      { ...TICK, seed },
+    ),
+  );
+
+/** A mini Task List, `size` px square: a page with three lines, the partner of the mini-Matrix. */
+export function miniList(size: number, seed: number): SketchPath[] {
+  const s = size / 18;
+  const line = { ...ICON, disableMultiStroke: true };
+  return [
+    ...roughRect(2 * s, 1 * s, 14 * s, 16 * s, { ...ICON, seed }),
+    ...[5, 9, 13].flatMap((y, i) => roughLine(5 * s, y * s, (i === 2 ? 10 : 13) * s, y * s, { ...line, seed: seed + 1 + i })),
+  ];
+}
 
 /**
  * A mini-Matrix, `size` px square: a box split into four Quadrants, with the one at `marked` (its index in
@@ -91,15 +130,17 @@ export const cross = (size: number, seed: number, o: Options) => [
 
 const avg = (a: number, b: number) => (a + b) / 2;
 
+/** A coordinate as it is written into a path, to two decimal places. */
+const coord = (n: number) => n.toFixed(2);
+
 /** Turns a perfect-freehand outline into a closed, filled SVG path. */
 function pathFromOutline(points: number[][]): string {
   if (points.length < 4) return '';
-  const f = (n: number) => n.toFixed(2);
   const [a, b, c] = points as [number[], number[], number[]];
-  let d = `M${f(a[0]!)},${f(a[1]!)} Q${f(b[0]!)},${f(b[1]!)} ${f(avg(b[0]!, c[0]!))},${f(avg(b[1]!, c[1]!))} T`;
+  let d = `M${coord(a[0]!)},${coord(a[1]!)} Q${coord(b[0]!)},${coord(b[1]!)} ${coord(avg(b[0]!, c[0]!))},${coord(avg(b[1]!, c[1]!))} T`;
   for (let i = 2; i < points.length - 1; i++) {
     const [p, q] = [points[i]!, points[i + 1]!];
-    d += `${f(avg(p[0]!, q[0]!))},${f(avg(p[1]!, q[1]!))} `;
+    d += `${coord(avg(p[0]!, q[0]!))},${coord(avg(p[1]!, q[1]!))} `;
   }
   return d + 'Z';
 }
@@ -122,4 +163,42 @@ export function inkLine(x1: number, y1: number, x2: number, y2: number, seed: nu
     points.push([x1 + (x2 - x1) * t + nx * off, y1 + (y2 - y1) * t + ny * off]);
   }
   return inkPath(points, size);
+}
+
+/**
+ * The felt-pen `|/|/|/|` zigzag struck through one line of text, the line's box being `x, y, w, h`: uneven teeth, a
+ * drifting baseline and leaning down strokes. It starts the way it ends, with a down stroke, so both ends look alike.
+ * Gives the ink to fill (`d`), and the path the pen took (`spine`), along which the strike is drawn on.
+ */
+export function zigzag(x: number, y: number, w: number, h: number, seed: number): { d: string; spine: string; pen: number } {
+  const r = rng(seed);
+  const jit = (n: number) => (r() - 0.5) * n;
+  const top = y + h * 0.18;
+  const bottom = y + h * 0.88;
+  // The whole stroke rises or sinks a little from left to right.
+  const drift = jit(h * 0.2);
+  const lift = (cx: number) => ((cx - x) / Math.max(w, 1)) * drift;
+  const end = x + w + 3;
+  let cx = x - 1;
+  const corners: number[][] = [
+    [cx + jit(2), top + jit(h * 0.14)],
+    [cx - 1.5 - r() * 2.5, bottom + jit(h * 0.12)],
+  ];
+  while (cx < end) {
+    cx = Math.min(cx + h * (0.6 + r() * 0.2), end);
+    corners.push([cx + jit(2), top + lift(cx) + jit(h * 0.14)]);
+    corners.push([cx - 1.5 - r() * 2.5, bottom + lift(cx) + jit(h * 0.12)]);
+  }
+  // A little wobble along each stroke, so the corners stay sharp but the lines aren't ruler-straight.
+  const points: number[][] = [corners[0]!];
+  for (let i = 1; i < corners.length; i++) {
+    const [ax, ay] = corners[i - 1] as [number, number];
+    const [bx, by] = corners[i] as [number, number];
+    for (const t of [0.35, 0.7]) points.push([ax + (bx - ax) * t + jit(1.2), ay + (by - ay) * t + jit(1.2)]);
+    points.push(corners[i]!);
+  }
+  const pen = Math.max(2.8, h * 0.115);
+  const outline = getStroke(points, { size: pen, thinning: 0.15, smoothing: 0.25, streamline: 0.15, simulatePressure: false, last: true });
+  const spine = 'M' + points.map(([px, py]) => `${coord(px!)},${coord(py!)}`).join(' L');
+  return { d: pathFromOutline(outline), spine, pen };
 }

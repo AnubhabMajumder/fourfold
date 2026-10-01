@@ -63,6 +63,10 @@ export function createClient(baseUrl = '', fetchImpl: Fetch = (input, init) => f
     /** Places a Task at `position` in the Quadrant, or at its bottom without one. */
     place: (id: string, date: CalendarDate, quadrant: Quadrant, position?: number) =>
       call<Task>('POST', `/tasks/${id}/place`, { date, quadrant, position }),
+    complete: (id: string) => call<Task>('POST', `/tasks/${id}/complete`),
+    uncomplete: (id: string) => call<Task>('POST', `/tasks/${id}/uncomplete`),
+    /** Returns a placed Task to the Task List, at `position` there, or at its top without one. */
+    return: (id: string, position?: number) => call<Task>('POST', `/tasks/${id}/return`, position === undefined ? undefined : { position }),
   };
 }
 

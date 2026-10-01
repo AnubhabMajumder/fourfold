@@ -1,7 +1,7 @@
 // The hand-drawn layers: decorative, aria-hidden SVG over or behind real controls and text, which keep all the
 // meaning. Each shape is redrawn only when its element's size changes.
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BOX, cross, DELETE_MARK, inkLine, miniMatrix, roughRect, type SketchPath } from './geometry.ts';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { BOX, cross, DELETE_MARK, HATCHING, inkLine, miniList, miniMatrix, roughRect, tick, zigzag, type SketchPath } from './geometry.ts';
 
 /** An element's size, kept up to date as it resizes. */
 function useSize<T extends HTMLElement>() {
@@ -87,5 +87,165 @@ export function Dividers({ seed }: { seed: number }) {
         ))}
       </svg>
     </div>
+  );
+}
+
+/** A sketched mini Task List icon: a page with three lines. */
+export function MiniList({ seed, size = 18 }: { seed: number; size?: number }) {
+  const paths = useMemo(() => miniList(size, seed), [size, seed]);
+  return (
+    <svg aria-hidden="true" className="icon" width={size} height={size}>
+      <Paths paths={paths} />
+    </svg>
+  );
+}
+
+const CHECKBOX_SIZE = 20;
+
+/** The look of a checkbox: a sketched box, ticked in the strike colour when `checked`. The real checkbox is beside it. */
+export function CheckboxMark({ seed, checked }: { seed: number; checked: boolean }) {
+  const box = useMemo(() => roughRect(1.5, 1.5, CHECKBOX_SIZE - 3, CHECKBOX_SIZE - 3, { ...BOX, seed }), [seed]);
+  const tickPaths = useMemo(() => tick(CHECKBOX_SIZE, seed + 1), [seed]);
+  return (
+    <svg aria-hidden="true" className="checkbox-mark" width={CHECKBOX_SIZE} height={CHECKBOX_SIZE}>
+      <Paths paths={box} />
+      {checked && (
+        <g className="tick">
+          <Paths paths={tickPaths} />
+        </g>
+      )}
+    </svg>
+  );
+}
+
+/**
+ * Hatches an all-Completed Quadrant. Fills its positioned parent, the Quadrant's frame rather than its scrolling
+ * list, so the whole Quadrant stays hatched however far the list is scrolled.
+ */
+export function Hatching({ seed }: { seed: number }) {
+  const [ref, { w, h }] = useSize<HTMLDivElement>();
+  const paths = useMemo(() => (w && h ? roughRect(0, 0, w, h, { ...HATCHING, seed }) : []), [w, h, seed]);
+  return (
+    <div ref={ref} className="hatching" aria-hidden="true">
+      <svg width={w} height={h}>
+        <Paths paths={paths} />
+      </svg>
+    </div>
+  );
+}
+
+const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
+
+/** Whether the user has asked for reduced motion, kept up to date if they change it. */
+export function useReducedMotion() {
+  const [reduced, setReduced] = useState(() => matchMedia(REDUCED_MOTION).matches);
+  useEffect(() => {
+    const query = matchMedia(REDUCED_MOTION);
+    const change = () => setReduced(query.matches);
+    change();
+    query.addEventListener('change', change);
+    return () => query.removeEventListener('change', change);
+  }, []);
+  return reduced;
+}
+
+/** One line of text, as laid out, relative to the text's box. */
+type Line = { x: number; y: number; w: number; h: number };
+
+/** The boxes of each line `text` is laid out on, relative to `box`. */
+function measureLines(text: HTMLElement, box: HTMLElement): Line[] {
+  const range = document.createRange();
+  range.selectNodeContents(text);
+  const base = box.getBoundingClientRect();
+  const byTop = new Map<number, Line>();
+  for (const r of range.getClientRects()) {
+    if (r.width < 1) continue;
+    const top = Math.round(r.top - base.top);
+    const x = r.left - base.left;
+    const line = byTop.get(top);
+    if (!line) byTop.set(top, { x, y: r.top - base.top, w: r.width, h: r.height });
+    else {
+      const right = Math.max(line.x + line.w, x + r.width);
+      line.x = Math.min(line.x, x);
+      line.w = right - line.x;
+    }
+  }
+  return [...byTop.values()];
+}
+
+/**
+ * Where a strike is in its life: not there, there, being drawn on (only when the user completes the Task on screen,
+ * never on load), or being rubbed out.
+ */
+type StrikePhase = 'none' | 'drawn' | 'drawing' | 'rubbing-out';
+
+/**
+ * Text struck through, while `done`, with a felt-pen zigzag across each of its lines.
+ *
+ * The text stays real DOM text in the handwriting font, and the strike is a separate SVG layer drawn over it. Never
+ * put an SVG turbulence or displacement filter on the text to make it look hand-drawn: filters warp the glyphs, hurt
+ * readability, and don't exist in react-native-svg, which a later mobile app would draw with.
+ */
+export function Strike({ seed, done, children }: { seed: number; done: boolean; children: ReactNode }) {
+  const reduced = useReducedMotion();
+  const [was, setWas] = useState(done);
+  const [phase, setPhase] = useState<StrikePhase>(done ? 'drawn' : 'none');
+  if (done !== was) {
+    // Under reduced motion the strike appears already drawn, and goes at once.
+    setWas(done);
+    setPhase(done ? (reduced ? 'drawn' : 'drawing') : reduced ? 'none' : 'rubbing-out');
+  }
+  const shown = phase !== 'none' && !(reduced && phase === 'rubbing-out');
+
+  const box = useRef<HTMLSpanElement>(null);
+  const text = useRef<HTMLSpanElement>(null);
+  const [lines, setLines] = useState<Line[]>([]);
+  useLayoutEffect(() => {
+    if (!shown) return;
+    // Fonts are loaded before the first render (main.tsx), so only a resize can re-wrap the text.
+    const measure = () => setLines(measureLines(text.current!, box.current!));
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(box.current!);
+    return () => ro.disconnect();
+  }, [shown, children]);
+
+  const maskId = useId();
+  const strokes = useMemo(() => lines.map((l, i) => zigzag(l.x, l.y, l.w, l.h, seed + i)), [lines, seed]);
+  const drawing = phase === 'drawing' && !reduced;
+  return (
+    <span ref={box} className="strike">
+      <span ref={text}>{children}</span>
+      {shown && (
+        <svg
+          aria-hidden="true"
+          className={phase === 'rubbing-out' ? 'rubbing-out' : undefined}
+          onAnimationEnd={(e) => {
+            if (e.target === e.currentTarget && phase === 'rubbing-out') setPhase('none');
+          }}
+        >
+          {strokes.map((z, i) => (
+            <g key={i}>
+              {drawing && (
+                // Drawn on along the pen's path, every line at once: a mask follows the spine of the zigzag with a stroke-dash animation.
+                <mask id={`${maskId}-${i}`}>
+                  <path
+                    d={z.spine}
+                    className="drawing-on"
+                    pathLength={1}
+                    stroke="white"
+                    strokeWidth={z.pen * 3}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                  />
+                </mask>
+              )}
+              <path d={z.d} fill="currentColor" mask={drawing ? `url(#${maskId}-${i})` : undefined} />
+            </g>
+          ))}
+        </svg>
+      )}
+    </span>
   );
 }

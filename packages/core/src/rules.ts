@@ -15,7 +15,9 @@ export type Refusal =
   | 'task_not_placed'
   | 'task_not_completed'
   | 'task_already_completed'
-  | 'completed_task_not_returnable';
+  | 'completed_task_not_returnable'
+  /** A Completed Task cannot be deleted directly: it must be un-completed and returned to the Task List first. */
+  | 'completed_task_not_deletable';
 
 export const isBlank = (text: string) => text.trim() === '';
 
@@ -52,7 +54,7 @@ const STATE_TABLE: Record<TaskState, Record<Change, Refusal | null>> = {
     complete: 'task_already_completed',
     uncomplete: null,
     return: 'completed_task_not_returnable',
-    delete: 'task_already_placed',
+    delete: 'completed_task_not_deletable',
   },
 };
 

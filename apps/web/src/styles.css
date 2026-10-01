@@ -317,11 +317,14 @@ body.dragging {
 }
 
 .quadrant {
+  position: relative;
   display: flex;
   min-height: 0;
 }
 
 .quadrant ul {
+  /* Positioned, so the Tasks are drawn over their Quadrant's hatching. */
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow: auto;
@@ -330,8 +333,123 @@ body.dragging {
 
 /* Placed Tasks are drawn straight: no tilt or scatter. */
 .placed-task {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   padding: 4px 0;
-  overflow-wrap: anywhere;
+}
+
+/* A placed Task's checkbox: the real one is hidden, and its sketched box is drawn in its place. */
+.checkbox {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  padding-top: 2px;
+  cursor: pointer;
+}
+
+/* The real checkbox lies, transparent, over its sketch: it takes the clicks, the keyboard and the screen reader. */
+.checkbox input {
+  position: absolute;
+  inset: 2px 0 0;
+  width: 100%;
+  height: calc(100% - 2px);
+  z-index: 1;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.checkbox-mark {
+  overflow: visible;
+}
+
+.checkbox-mark .tick {
+  color: var(--strike);
+}
+
+.checkbox input:focus-visible + .checkbox-mark {
+  outline: 2px solid var(--strike);
+  outline-offset: 2px;
+}
+
+/* The mini-list button: shown on hover (always, where there is no hover). */
+.return {
+  flex: none;
+  opacity: 0;
+}
+
+.placed-task:hover .return,
+.return:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .return {
+    opacity: 1;
+  }
+}
+
+/* Struck-through text keeps full ink; the strike is a layer over it, in the strike colour. */
+.strike {
+  position: relative;
+  display: block;
+}
+
+.strike > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  color: var(--strike);
+}
+
+.drawing-on {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw-on 0.35s ease-out forwards;
+}
+
+@keyframes draw-on {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.rubbing-out {
+  animation: rub-out 0.25s ease-in forwards;
+}
+
+@keyframes rub-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawing-on {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .rubbing-out {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* An all-Completed Quadrant, hatched across its whole frame, behind its Tasks */
+.hatching {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: var(--strike);
+}
+
+.hatching svg {
+  display: block;
 }
 
 .dividers {

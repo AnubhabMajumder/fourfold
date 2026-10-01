@@ -1,7 +1,8 @@
-import { formatDate, QUADRANT_NAMES, QUADRANTS } from '@fourfold/core';
-import { SEEDS } from '../sketch/geometry.ts';
-import { Dividers } from '../sketch/Sketch.tsx';
+import { formatDate, QUADRANT_NAMES, QUADRANTS, stateOf, type Task } from '@fourfold/core';
+import { SEEDS, seedOf } from '../sketch/geometry.ts';
+import { CheckboxMark, Dividers, Hatching, MiniList } from '../sketch/Sketch.tsx';
 import { useStore } from '../store.ts';
+import { TaskText } from './TaskText.tsx';
 
 /** The Matrix on screen: four Quadrants, left to right and top to bottom in QUADRANTS order. */
 export function Matrix() {
@@ -19,18 +20,49 @@ export function Matrix() {
       </div>
       <div className="quadrants">
         <Dividers seed={SEEDS.dividers} />
-        {QUADRANTS.map((q) => (
-          <section key={q} className="quadrant" aria-label={QUADRANT_NAMES[q]}>
-            <ul>
-              {matrix.quadrants[q].map((t) => (
-                <li key={t.id} className="placed-task">
-                  {t.text}
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
+        {QUADRANTS.map((q, i) => {
+          const tasks = matrix.quadrants[q];
+          const allCompleted = tasks.length > 0 && tasks.every((t) => stateOf(t) === 'completed');
+          return (
+            <section key={q} className="quadrant" aria-label={QUADRANT_NAMES[q]}>
+              {allCompleted && <Hatching seed={SEEDS.hatching + i} />}
+              <ul>
+                {tasks.map((t) => (
+                  <PlacedTask key={t.id} task={t} />
+                ))}
+              </ul>
+            </section>
+          );
+        })}
       </div>
     </section>
+  );
+}
+
+/** A placed Task: a checkbox labelled by its text, the text, and (unless Completed) the button that returns it. */
+function PlacedTask({ task }: { task: Task }) {
+  const [, store] = useStore();
+  const seed = seedOf(task.id);
+  const textId = `text-${task.id}`;
+  const completed = stateOf(task) === 'completed';
+  return (
+    <li className="placed-task">
+      <label className="checkbox">
+        <input
+          type="checkbox"
+          checked={completed}
+          aria-labelledby={textId}
+          onChange={(e) => store.setCompleted(task.id, e.currentTarget.checked)}
+        />
+        <CheckboxMark seed={seed} checked={completed} />
+      </label>
+      {/* Empty text leaves a placed Task's text as it was. */}
+      <TaskText id={textId} text={task.text} strike={{ seed, done: completed }} onSave={(text) => store.edit(task.id, text)} />
+      {!completed && (
+        <button type="button" className="icon-button return" aria-label="Return to the Task List" onClick={() => store.returnToTaskList(task.id)}>
+          <MiniList seed={seed + 7} />
+        </button>
+      )}
+    </li>
   );
 }

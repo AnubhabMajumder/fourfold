@@ -1,5 +1,7 @@
 import type { Page } from '@playwright/test';
-import { BASE_URL, expect, test } from './fixtures.ts';
+import { BASE_URL, expect, test, type apiClient } from './fixtures.ts';
+
+type Api = ReturnType<typeof apiClient>;
 
 const taskList = (page: Page) => page.getByRole('complementary', { name: 'Task List' });
 const rows = (page: Page) => taskList(page).getByRole('listitem');
@@ -489,5 +491,209 @@ test.describe('the Task List', () => {
     await server.run();
     await app.reload();
     await expect(rows(app)).toHaveText(['Call Mum', 'Buy milk']);
+  });
+});
+
+test.describe('working with placed Tasks', () => {
+  const TODAY = '2026-09-24';
+  const quadrant = (page: Page, name: string) => matrix(page).getByRole('region', { name, exact: true });
+  const placed = (page: Page, text: string) => matrix(page).getByRole('listitem').filter({ hasText: text });
+  /** The strike's ink: one filled zigzag per line of text (not the masks it's drawn on with). */
+  const strike = (page: Page, text: string) => placed(page, text).locator('.strike > svg[aria-hidden="true"] > g > path');
+  const checkbox = (page: Page, text: string) => matrix(page).getByRole('checkbox', { name: text, exact: true });
+  const completedAt = async (api: Api, text: string) =>
+    Object.values((await api.matrix(TODAY))!.quadrants)
+      .flat()
+      .find((t) => t.text === text)?.completedAt;
+  const quadrantTexts = async (api: Api) => (await api.matrix(TODAY))?.quadrants['important-urgent'].map((t) => t.text);
+
+  /** Writes Tasks and places them, in order, in Important + Urgent, then opens the app afresh. */
+  async function placeAll(app: Page, api: Api, ...texts: string[]) {
+    for (const id of await api.write(...texts)) await api.place(id, TODAY, 'important-urgent');
+    await app.reload();
+  }
+
+  test('completes a placed Task with its checkbox, labelled by its text, and un-completes it', async ({ app, api }) => {
+    await placeAll(app, api, 'Buy milk', 'Call Mum');
+    const box = checkbox(app, 'Buy milk');
+    await expect(box).not.toBeChecked();
+    await expect(strike(app, 'Buy milk')).toHaveCount(0);
+
+    await box.check();
+    await expect(box).toBeChecked();
+    await expect(strike(app, 'Buy milk')).toHaveCount(1);
+    await expect(placed(app, 'Buy milk').locator('.tick')).toHaveCSS('color', 'rgb(28, 28, 28)');
+    // It stays where it was, with full-ink text.
+    await expect(quadrant(app, 'Important + Urgent').getByRole('listitem')).toHaveText(['Buy milk', 'Call Mum']);
+    await expect(placed(app, 'Buy milk').getByText('Buy milk')).toHaveCSS('opacity', '1');
+    await expect.poll(() => completedAt(api, 'Buy milk')).not.toBeNull();
+
+    await box.uncheck();
+    await expect(box).not.toBeChecked();
+    await expect(strike(app, 'Buy milk')).toHaveCount(0);
+    await expect(placed(app, 'Buy milk').locator('.tick')).toHaveCount(0);
+    await expect.poll(() => completedAt(api, 'Buy milk')).toBeNull();
+    expect(await quadrantTexts(api)).toEqual(['Buy milk', 'Call Mum']);
+  });
+
+  test('works the checkbox from the keyboard, with the focus outline on its sketched box', async ({ app, api }) => {
+    await placeAll(app, api, 'Buy milk');
+    await checkbox(app, 'Buy milk').focus();
+    await app.keyboard.press('Space');
+    await expect(checkbox(app, 'Buy milk')).toBeChecked();
+    await expect(placed(app, 'Buy milk').locator('.checkbox-mark')).toHaveCSS('outline', 'rgb(28, 28, 28) solid 2px');
+    await expect.poll(() => completedAt(api, 'Buy milk')).not.toBeNull();
+  });
+
+  test('draws the strike on when completing, never on load, and gives it no meaning of its own', async ({ app, api }) => {
+    await placeAll(app, api, 'Buy milk');
+    await checkbox(app, 'Buy milk').check();
+    await expect(placed(app, 'Buy milk').locator('.drawing-on')).toHaveCount(1);
+    await expect.poll(() => completedAt(api, 'Buy milk')).not.toBeNull();
+
+    await app.reload();
+    await expect(checkbox(app, 'Buy milk')).toBeChecked();
+    await expect(strike(app, 'Buy milk')).toHaveCount(1);
+    await expect(placed(app, 'Buy milk').locator('.drawing-on')).toHaveCount(0);
+    expect(await app.evaluate(() => document.getAnimations().length)).toBe(0);
+    await expect(matrix(app).locator('s, del, [aria-checked]')).toHaveCount(0);
+  });
+
+  test('strikes each line of a long Task', async ({ app, api }) => {
+    const long = 'Write the long letter to the council about the hedge, the bins, and the parking on the corner of the street';
+    await placeAll(app, api, long);
+    await checkbox(app, long).check();
+    const lines = await placed(app, long)
+      .locator('.strike > span')
+      .evaluate((el) => {
+        const r = document.createRange();
+        r.selectNodeContents(el);
+        return new Set([...r.getClientRects()].map((b) => Math.round(b.top))).size;
+      });
+    expect(lines).toBeGreaterThan(1);
+    await expect(strike(app, long)).toHaveCount(lines);
+  });
+
+  test.describe('with reduced motion', () => {
+    test.use({ contextOptions: { reducedMotion: 'reduce' } });
+
+    test('shows the strike already drawn, and removes it at once', async ({ app, api }) => {
+      await placeAll(app, api, 'Buy milk');
+      const box = checkbox(app, 'Buy milk');
+      await box.check();
+      await expect(strike(app, 'Buy milk')).toHaveCount(1);
+      await expect(placed(app, 'Buy milk').locator('.drawing-on')).toHaveCount(0);
+      expect(await app.evaluate(() => document.getAnimations().length)).toBe(0);
+      await box.uncheck();
+      expect(await placed(app, 'Buy milk').locator('.strike > svg').count()).toBe(0);
+    });
+  });
+
+  test('follows reduced motion being turned on while the app is open', async ({ app, api }) => {
+    await placeAll(app, api, 'Buy milk');
+    await app.emulateMedia({ reducedMotion: 'reduce' });
+    await checkbox(app, 'Buy milk').check();
+    await expect(strike(app, 'Buy milk')).toHaveCount(1);
+    await expect(placed(app, 'Buy milk').locator('.drawing-on')).toHaveCount(0);
+  });
+
+  test('hatches a Quadrant across its whole frame when all its Tasks are Completed', async ({ app, api }) => {
+    await placeAll(app, api, 'Buy milk', 'Call Mum');
+    const q = quadrant(app, 'Important + Urgent');
+    await checkbox(app, 'Buy milk').check();
+    await expect(q.locator('.hatching')).toHaveCount(0);
+    await checkbox(app, 'Call Mum').check();
+    await expect(q.locator('.hatching[aria-hidden="true"] path').first()).toBeAttached();
+    expect(await q.locator('.hatching').boundingBox()).toEqual(await q.boundingBox());
+    await expect(quadrant(app, 'Important + Not Urgent').locator('.hatching')).toHaveCount(0);
+    await checkbox(app, 'Call Mum').uncheck();
+    await expect(q.locator('.hatching')).toHaveCount(0);
+  });
+
+  test('returns an unfinished Task to the top of the Task List with the mini-list button shown on hover', async ({ app, api }) => {
+    await api.write('Waiting');
+    await placeAll(app, api, 'Buy milk', 'Call Mum');
+    const returnButton = placed(app, 'Buy milk').getByRole('button', { name: 'Return to the Task List' });
+    await expect(returnButton).toHaveCSS('opacity', '0');
+    await expect(returnButton.locator('svg[aria-hidden="true"] path').first()).toBeAttached();
+    await placed(app, 'Buy milk').hover();
+    await expect(returnButton).toHaveCSS('opacity', '1');
+    await returnButton.click();
+
+    await expect(rows(app)).toHaveText(['Buy milk', 'Waiting']);
+    await expect(quadrant(app, 'Important + Urgent').getByRole('listitem')).toHaveText(['Call Mum']);
+    await expect.poll(() => apiTexts(api)).toEqual(['Buy milk', 'Waiting']);
+    await app.reload();
+    await expect(rows(app)).toHaveText(['Buy milk', 'Waiting']);
+    await expect(quadrant(app, 'Important + Urgent').getByRole('listitem')).toHaveText(['Call Mum']);
+  });
+
+  test('returns a Task from the keyboard, and returning the last one removes the Matrix', async ({ app, api }) => {
+    await placeAll(app, api, 'Buy milk');
+    const returnButton = placed(app, 'Buy milk').getByRole('button', { name: 'Return to the Task List' });
+    await returnButton.focus();
+    await expect(returnButton).toHaveCSS('opacity', '1');
+    await app.keyboard.press('Enter');
+    await expect(rows(app)).toHaveText(['Buy milk']);
+    await expect(matrix(app).getByRole('listitem')).toHaveCount(0);
+    await expect.poll(() => api.matrix(TODAY)).toBeNull();
+  });
+
+  test('offers no mini-list button on a Completed Task', async ({ app, api }) => {
+    await placeAll(app, api, 'Buy milk');
+    await checkbox(app, 'Buy milk').check();
+    await expect(placed(app, 'Buy milk').getByRole('button')).toHaveCount(0);
+    await checkbox(app, 'Buy milk').uncheck();
+    await expect(placed(app, 'Buy milk').getByRole('button', { name: 'Return to the Task List' })).toHaveCount(1);
+  });
+
+  test('edits a placed or Completed Task in place, saving with Enter or clicking away, cancelling with Esc', async ({ app, api }) => {
+    await placeAll(app, api, 'Buy milk', 'Call Mum');
+    await checkbox(app, 'Call Mum').check();
+    const edit = matrix(app).getByRole('textbox', { name: 'Task text' });
+
+    await placed(app, 'Buy milk').getByText('Buy milk').dblclick();
+    await expect(edit).toBeFocused();
+    await edit.fill('Buy oat milk');
+    await edit.press('Enter');
+    await placed(app, 'Call Mum').getByText('Call Mum').dblclick();
+    await edit.fill('Call Mum back');
+    await app.getByRole('heading', { name: 'Task List' }).click();
+    await expect(quadrant(app, 'Important + Urgent').getByRole('listitem')).toHaveText(['Buy oat milk', 'Call Mum back']);
+    await expect(checkbox(app, 'Call Mum back')).toBeChecked();
+    await expect(strike(app, 'Call Mum back')).toHaveCount(1);
+
+    await placed(app, 'Buy oat milk').getByText('Buy oat milk').dblclick();
+    await edit.fill('Something else');
+    await edit.press('Escape');
+    await expect(quadrant(app, 'Important + Urgent').getByRole('listitem')).toHaveText(['Buy oat milk', 'Call Mum back']);
+    await expect.poll(() => quadrantTexts(api)).toEqual(['Buy oat milk', 'Call Mum back']);
+  });
+
+  test('keeps the old text when a placed Task is saved with empty text', async ({ app, api }) => {
+    await placeAll(app, api, 'Buy milk');
+    await placed(app, 'Buy milk').getByText('Buy milk').dblclick();
+    const edit = matrix(app).getByRole('textbox', { name: 'Task text' });
+    await edit.fill('   ');
+    await edit.press('Enter');
+    await expect(quadrant(app, 'Important + Urgent').getByRole('listitem')).toHaveText(['Buy milk']);
+    await app.reload();
+    await expect(quadrant(app, 'Important + Urgent').getByRole('listitem')).toHaveText(['Buy milk']);
+    expect(await quadrantTexts(api)).toEqual(['Buy milk']);
+  });
+
+  test('snaps a tick back if the API refuses it', async ({ app, api }) => {
+    await placeAll(app, api, 'Buy milk');
+    let release!: () => void;
+    const answered = new Promise<void>((r) => (release = r));
+    await app.route('**/api/tasks/*/complete', async (route) => {
+      await answered;
+      await route.fulfill({ status: 409, json: { reason: 'task_already_completed' } });
+    });
+    const box = checkbox(app, 'Buy milk');
+    await box.check();
+    await expect(box).toBeChecked();
+    release();
+    await expect(box).not.toBeChecked();
   });
 });

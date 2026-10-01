@@ -47,6 +47,10 @@ export function setup(start: Date = at('2026-09-24'), db: Db = openDatabase(':me
     move: (id: string, index: number) => call('POST', `/tasks/${id}/move`, { index }),
     place: (id: string, date: CalendarDate, quadrant: Quadrant, position?: number) =>
       call('POST', `/tasks/${id}/place`, { date, quadrant, position }),
+    complete: (id: string) => call('POST', `/tasks/${id}/complete`),
+    uncomplete: (id: string) => call('POST', `/tasks/${id}/uncomplete`),
+    /** Returns a placed Task to the Task List, at `position` there, or at the top without one. */
+    return: (id: string, position?: number) => call('POST', `/tasks/${id}/return`, position === undefined ? undefined : { position }),
     taskList: async () => (await call<Task[]>('GET', '/task-list')).body,
     matrix: (date: CalendarDate) => call<Matrix>('GET', `/matrices/${date}`),
 

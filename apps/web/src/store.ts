@@ -6,8 +6,11 @@ import {
   isBlank,
   localDate,
   newTask,
+  QUADRANTS,
   RefusedError,
+  refusalFor,
   refusalToPlace,
+  stateOf,
   type CalendarDate,
   type Client,
   type Matrix,
@@ -24,6 +27,17 @@ export type State = {
 
 /** A change as the screen shows it. It must leave the state alone if it no longer applies. */
 type Change = (s: State) => State;
+
+/** The Task with `id`, wherever it is on screen: in the Task List or the Matrix. */
+const findTask = (s: State, id: string) =>
+  s.taskList.find((t) => t.id === id) ?? QUADRANTS.flatMap((q) => s.matrix.quadrants[q]).find((t) => t.id === id);
+
+/** Changes the Task with `id` wherever it is on screen, leaving it in its place. */
+function updateTask(s: State, id: string, update: (t: Task) => Task): State {
+  const each = (list: Task[]) => list.map((t) => (t.id === id ? update(t) : t));
+  const quadrants = Object.fromEntries(QUADRANTS.map((q) => [q, each(s.matrix.quadrants[q])])) as Matrix['quadrants'];
+  return { ...s, taskList: each(s.taskList), matrix: { ...s.matrix, quadrants } };
+}
 
 export class Store {
   /** What the API has said it holds. */
@@ -128,13 +142,48 @@ export class Store {
     return true;
   }
 
-  /** Changes a Task's text; empty text deletes it. */
+  /**
+   * Changes a Task's text. Empty text deletes a Task in the Task List, and leaves a placed Task's text as it was, so
+   * that a placed Task can't be deleted by clearing it.
+   */
   edit(id: string, text: string) {
-    if (isBlank(text)) return this.remove(id);
+    const task = findTask(this.state, id);
+    if (!task) return;
+    if (isBlank(text)) {
+      if (stateOf(task) === 'in-task-list') this.remove(id);
+      return;
+    }
     const trimmed = text.trim();
-    this.changeTaskList(
-      (list) => list.map((t) => (t.id === id ? { ...t, text: trimmed } : t)),
+    this.change(
+      (s) => updateTask(s, id, (t) => ({ ...t, text: trimmed })),
       () => this.client.edit(id, trimmed),
+    );
+  }
+
+  /** Completes a placed Task, or un-completes a Completed one. It stays where it is. */
+  setCompleted(id: string, completed: boolean) {
+    const task = findTask(this.state, id);
+    if (!task || refusalFor(completed ? 'complete' : 'uncomplete', task)) return;
+    const completedAt = completed ? new Date().toISOString() : null;
+    this.change(
+      (s) => updateTask(s, id, (t) => ({ ...t, completedAt })),
+      () => (completed ? this.client.complete(id) : this.client.uncomplete(id)),
+    );
+  }
+
+  /** Sends an unfinished placed Task back to the top of the Task List, leaving no trace in the Matrix. */
+  returnToTaskList(id: string) {
+    const task = findTask(this.state, id);
+    if (!task || refusalFor('return', task)) return;
+    this.change(
+      (s) => {
+        const t = s.taskList.some((x) => x.id === id) ? undefined : findTask(s, id);
+        if (!t) return s;
+        const quadrants = Object.fromEntries(QUADRANTS.map((q) => [q, s.matrix.quadrants[q].filter((x) => x.id !== id)])) as Matrix['quadrants'];
+        const returned: Task = { ...t, matrixDate: null, quadrant: null, completedAt: null };
+        return { ...s, taskList: [returned, ...s.taskList], matrix: { ...s.matrix, quadrants } };
+      },
+      () => this.client.return(id),
     );
   }
 

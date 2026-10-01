@@ -33,20 +33,36 @@ function calendarDate(s: unknown): CalendarDate {
 
 /** The local API: every change is checked against the rules in `core`, and refused with 409 if they forbid it. */
 export function createApp({ db, clock = () => new Date() }: AppOptions) {
-  const taskList = () => db.select().from(tasks).where(isNull(tasks.matrixDate)).orderBy(asc(tasks.position));
+  const taskList = (tx: Pick<Db, 'select'> = db) => tx.select().from(tasks).where(isNull(tasks.matrixDate)).orderBy(asc(tasks.position));
   const quadrant = (tx: Pick<Db, 'select'>, date: CalendarDate, q: Quadrant) =>
     tx.select().from(tasks).where(and(eq(tasks.matrixDate, date), eq(tasks.quadrant, q))).orderBy(asc(tasks.position));
   const findTask = (tx: Pick<Db, 'select'>, id: string) => tx.select().from(tasks).where(eq(tasks.id, id)).get();
 
-  async function body(c: Context): Promise<Record<string, unknown>> {
+  /** The request's JSON object; with `optional`, an empty body counts as an empty object. */
+  async function body(c: Context, { optional = false } = {}): Promise<Record<string, unknown>> {
     try {
-      const b: unknown = await c.req.json();
+      const text = await c.req.text();
+      if (optional && text === '') return {};
+      const b: unknown = JSON.parse(text);
       if (b && typeof b === 'object' && !Array.isArray(b)) return b as Record<string, unknown>;
     } catch {
       // fall through
     }
     throw new BadRequest('Expected a JSON object');
   }
+
+  /** An optional index into a list: a whole number, 0 or more. */
+  function index(value: unknown, name: string): number | undefined {
+    if (value === undefined) return undefined;
+    if (typeof value === 'number' && Number.isInteger(value) && value >= 0) return value;
+    throw new BadRequest(`${name} must be an index, 0 or more`);
+  }
+
+  /** A position key that puts a row at index `i` of a list with these keys (sorted), leaving every other key as it is. */
+  const keyAt = (keys: string[], i: number) => {
+    const at = Math.min(i, keys.length);
+    return generateKeyBetween(keys[at - 1] ?? null, keys[at] ?? null);
+  };
 
   const refuse = (c: Context, reason: Refusal) => c.json({ reason }, 409);
 
@@ -123,8 +139,7 @@ export function createApp({ db, clock = () => new Date() }: AppOptions) {
           .where(and(isNull(tasks.matrixDate), ne(tasks.id, id)))
           .orderBy(asc(tasks.position))
           .all();
-        const at = Math.min(index, others.length);
-        const position = generateKeyBetween(others[at - 1]?.position ?? null, others[at]?.position ?? null);
+        const position = keyAt(others.map((t) => t.position), index);
         const moved = tx.update(tasks).set({ position }).where(eq(tasks.id, id)).returning().get()!;
         return c.json(toTask(moved));
       });
@@ -136,8 +151,7 @@ export function createApp({ db, clock = () => new Date() }: AppOptions) {
       const date = calendarDate(b.date);
       if (!QUADRANTS.includes(b.quadrant as Quadrant)) throw new BadRequest(`quadrant must be one of ${QUADRANTS.join(', ')}`);
       const q = b.quadrant as Quadrant;
-      const at = b.position;
-      if (at !== undefined && !(Number.isInteger(at) && (at as number) >= 0)) throw new BadRequest('position must be an index, 0 or more');
+      const at = index(b.position, 'position');
       const now = clock();
       return db.transaction((tx) => {
         const task = findTask(tx, c.req.param('id'));
@@ -147,12 +161,49 @@ export function createApp({ db, clock = () => new Date() }: AppOptions) {
         // The first Placement on a date creates its Matrix, in this same transaction.
         tx.insert(matrices).values({ date }).onConflictDoNothing().run();
         const keys = quadrant(tx, date, q).all().map((t) => t.position);
-        const i = Math.min((at as number | undefined) ?? keys.length, keys.length);
-        const position = generateKeyBetween(keys[i - 1] ?? null, keys[i] ?? null);
+        const position = keyAt(keys, at ?? keys.length);
         const row = tx.update(tasks).set({ matrixDate: date, quadrant: q, position }).where(eq(tasks.id, task.id)).returning().get()!;
         return c.json(toTask(row));
       });
+    })
+
+    /** Completing and un-completing a placed Task change only `completed_at`: it stays where it is. */
+    .post('/tasks/:id/complete', (c) => setCompleted(c, 'complete', clock().toISOString()))
+    .post('/tasks/:id/uncomplete', (c) => setCompleted(c, 'uncomplete', null))
+
+    /** Body (optional): `position`, the index in the Task List the Task is returned to; without one, the top. */
+    .post('/tasks/:id/return', async (c) => {
+      const at = index((await body(c, { optional: true })).position, 'position');
+      return db.transaction((tx) => {
+        const task = findTask(tx, c.req.param('id'));
+        if (!task) return refuse(c, 'task_not_found');
+        const refusal = refusalFor('return', task);
+        if (refusal) return refuse(c, refusal);
+        const keys = taskList(tx).all().map((t) => t.position);
+        const position = keyAt(keys, at ?? 0);
+        // Returning leaves no trace in the Matrix, and it's unfinished anyway, so every Matrix field is emptied.
+        const row = tx
+          .update(tasks)
+          .set({ matrixDate: null, quadrant: null, completedAt: null, position })
+          .where(eq(tasks.id, task.id))
+          .returning()
+          .get()!;
+        // Returning the last Task deletes its Matrix in the same transaction: there is never an empty Matrix.
+        if (!tx.select({ id: tasks.id }).from(tasks).where(eq(tasks.matrixDate, task.matrixDate!)).limit(1).get())
+          tx.delete(matrices).where(eq(matrices.date, task.matrixDate!)).run();
+        return c.json(toTask(row));
+      });
     });
+
+  function setCompleted(c: Context, change: 'complete' | 'uncomplete', completedAt: string | null) {
+    return db.transaction((tx) => {
+      const task = findTask(tx, c.req.param('id')!);
+      if (!task) return refuse(c, 'task_not_found');
+      const refusal = refusalFor(change, task);
+      if (refusal) return refuse(c, refusal);
+      return c.json(toTask(tx.update(tasks).set({ completedAt }).where(eq(tasks.id, task.id)).returning().get()!));
+    });
+  }
 
   return new Hono().route('/api', api).all('/api/*', (c) => c.json({ error: 'Not found' }, 404));
 }

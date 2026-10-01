@@ -17,8 +17,13 @@ export const SEEDS = {
   /** The hatching of an all-Completed Quadrant; each Quadrant adds its index in QUADRANTS. */
   hatching: 51,
   gear: 61,
-  /** The settings pop-over's box; its swatches add their index in SCHEMES. */
   settings: 62,
+  /** The box round a chosen colour scheme; each scheme adds its index in SCHEMES. */
+  schemeChoices: 71,
+  /** A colour scheme's swatch; each scheme adds its index in SCHEMES. */
+  swatches: 81,
+  /** The box round a chosen strike style; each style adds its index in STRIKE_STYLES. */
+  strikeChoices: 91,
 } as const;
 
 /** A seed from a stable id (FNV-1a), in rough.js's range 1 … 2^31 − 2. */

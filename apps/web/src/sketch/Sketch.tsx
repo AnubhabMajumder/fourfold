@@ -42,11 +42,11 @@ export function SketchBox({ seed, className = '', children }: { seed: number; cl
 }
 
 /** A block in a sketched box, sized to whatever the block ends up being. */
-export function SketchPanel({ seed, className = '', children }: { seed: number; className?: string; children: ReactNode }) {
+export function SketchPanel({ seed, children }: { seed: number; children: ReactNode }) {
   const [ref, { w, h }] = useSize<HTMLDivElement>();
   const paths = useMemo(() => (w && h ? roughRect(2, 2, w - 4, h - 4, { ...BOX, seed }) : []), [w, h, seed]);
   return (
-    <div ref={ref} className={`sketch-panel ${className}`}>
+    <div ref={ref} className="sketch-panel">
       {children}
       <svg aria-hidden="true" width={w} height={h}>
         <Paths paths={paths} />

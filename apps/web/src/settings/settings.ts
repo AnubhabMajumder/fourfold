@@ -3,8 +3,13 @@
 import { useSyncExternalStore } from 'react';
 import { SCHEMES, type SchemeName } from './schemes.ts';
 
-export type StrikeStyle = 'zigzag' | 'rough-line';
-export const STRIKE_STYLES: readonly StrikeStyle[] = ['zigzag', 'rough-line'];
+/** The strike styles, as the settings pop-over offers them. */
+export const STRIKE_STYLES = [
+  { style: 'zigzag', name: 'zigzag' },
+  { style: 'rough-line', name: 'rough line' },
+] as const;
+
+export type StrikeStyle = (typeof STRIKE_STYLES)[number]['style'];
 
 export type Settings = { scheme: SchemeName; strike: StrikeStyle };
 
@@ -24,7 +29,7 @@ function read<T extends string>(key: string, choices: readonly T[], fallback: T)
 
 let current: Settings = {
   scheme: read(KEYS.scheme, SCHEMES.map((s) => s.name), DEFAULTS.scheme),
-  strike: read(KEYS.strike, STRIKE_STYLES, DEFAULTS.strike),
+  strike: read(KEYS.strike, STRIKE_STYLES.map((s) => s.style), DEFAULTS.strike),
 };
 const listeners = new Set<() => void>();
 

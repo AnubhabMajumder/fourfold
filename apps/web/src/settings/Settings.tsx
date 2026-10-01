@@ -1,21 +1,22 @@
-import { useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { SEEDS } from '../sketch/geometry.ts';
 import { Gear, SketchBox, SketchPanel, Swatch } from '../sketch/Sketch.tsx';
 import { SCHEMES, type SchemeName } from './schemes.ts';
-import { changeSettings, useSettings, type StrikeStyle } from './settings.ts';
+import { changeSettings, STRIKE_STYLES, useSettings } from './settings.ts';
 import './settings.css';
 
-/** The colour schemes as the pop-over groups them: each choice shows only what its group's caption doesn't say. */
-const GROUPS: { caption?: string; choices: [SchemeName, string][] }[] = [
-  { choices: [['plain', 'plain']] },
-  { caption: 'ivory &', choices: [['ivory & navy', 'navy'], ['ivory & black', 'black']] },
-  { caption: 'dark', choices: [['chalkboard', 'chalkboard']] },
-  { caption: 'noir &', choices: [['noir & cobalt strike', 'cobalt strike'], ['noir & steel lines', 'steel lines']] },
-];
+/** A colour scheme as the pop-over offers it, showing only what its group's caption doesn't say. */
+const choice = (name: SchemeName, shown: string) => {
+  const index = SCHEMES.findIndex((s) => s.name === name);
+  return { scheme: SCHEMES[index]!, index, shown };
+};
 
-const STRIKES: [StrikeStyle, string][] = [
-  ['zigzag', 'zigzag'],
-  ['rough-line', 'rough line'],
+/** The colour schemes as the pop-over groups them. */
+const GROUPS: { caption?: string; choices: ReturnType<typeof choice>[] }[] = [
+  { choices: [choice('plain', 'plain')] },
+  { caption: 'ivory &', choices: [choice('ivory & navy', 'navy'), choice('ivory & black', 'black')] },
+  { caption: 'dark', choices: [choice('chalkboard', 'chalkboard')] },
+  { caption: 'noir &', choices: [choice('noir & cobalt strike', 'cobalt strike'), choice('noir & steel lines', 'steel lines')] },
 ];
 
 /**
@@ -29,12 +30,21 @@ export function SettingsGear() {
   // Its contents exist only while it's open, so they're not part of the page's text the rest of the time.
   const [open, setOpen] = useState(false);
   const [place, setPlace] = useState<CSSProperties>({});
+  const popover = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    // It's placed by the gear as it opens; rather than drift away from the gear, it closes if the window resizes.
+    const close = () => popover.current!.hidePopover();
+    addEventListener('resize', close);
+    return () => removeEventListener('resize', close);
+  }, [open]);
   return (
     <div className="settings">
       <button ref={gear} type="button" className="icon-button gear" aria-label="Settings" popoverTarget={id}>
         <Gear seed={SEEDS.gear} />
       </button>
       <div
+        ref={popover}
         id={id}
         popover="auto"
         role="dialog"
@@ -63,23 +73,19 @@ export function SettingsGear() {
                     </div>
                   )}
                   <div className="choices">
-                    {g.choices.map(([name, shown]) => {
-                      const index = SCHEMES.findIndex((s) => s.name === name);
-                      const { tokens } = SCHEMES[index]!;
-                      return (
-                        <Choice
-                          key={name}
-                          seed={SEEDS.settings + 1 + index}
-                          group={`${id}-scheme`}
-                          name={name}
-                          checked={settings.scheme === name}
-                          onChoose={() => changeSettings({ scheme: name })}
-                        >
-                          <Swatch seed={SEEDS.settings + 11 + index} bg={tokens.bg} ink={tokens.ink} strike={tokens.strike} />
-                          {shown}
-                        </Choice>
-                      );
-                    })}
+                    {g.choices.map(({ scheme: { name, tokens }, index, shown }) => (
+                      <Choice
+                        key={name}
+                        seed={SEEDS.schemeChoices + index}
+                        group={`${id}-scheme`}
+                        name={name}
+                        checked={settings.scheme === name}
+                        onChoose={() => changeSettings({ scheme: name })}
+                      >
+                        <Swatch seed={SEEDS.swatches + index} bg={tokens.bg} ink={tokens.ink} strike={tokens.strike} />
+                        {shown}
+                      </Choice>
+                    ))}
                   </div>
                 </div>
               ))}
@@ -87,10 +93,10 @@ export function SettingsGear() {
             <fieldset>
               <legend>Strike</legend>
               <div className="choices">
-                {STRIKES.map(([style, name], i) => (
+                {STRIKE_STYLES.map(({ style, name }, i) => (
                   <Choice
                     key={style}
-                    seed={SEEDS.settings + 21 + i}
+                    seed={SEEDS.strikeChoices + i}
                     group={`${id}-strike`}
                     name={name}
                     checked={settings.strike === style}

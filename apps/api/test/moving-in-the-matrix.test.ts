@@ -63,7 +63,7 @@ describe('moving a placed Task within its Matrix', () => {
     const api = setup(at(YESTERDAY, '10:30'));
     const [old, a] = await api.writeAll('old', 'a');
     await api.place(old!, YESTERDAY, 'important-urgent');
-    api.setTime(at(TODAY, '10:30'));
+    api.setTime(at(TODAY, '05:30'));
     await api.place(a!, TODAY, 'important-urgent');
     expect(await api.move(old!, 0, IU)).toMatchObject({ status: 409, body: { reason: 'task_in_another_matrix' } });
     expect(await api.move(a!, 0, { date: YESTERDAY, quadrant: 'important-urgent' })).toMatchObject({

@@ -110,6 +110,15 @@ ul {
   font-size: 22px;
 }
 
+/* ‹ past the oldest Matrix, or › at the latest date: faded, sketch and all. */
+.date-nav .sketch-box:has(> button:disabled) {
+  opacity: 0.3;
+}
+
+.date-nav button:disabled {
+  cursor: default;
+}
+
 .body {
   flex: 1;
   display: flex;
@@ -281,6 +290,14 @@ body.dragging {
   display: grid;
   grid-template: auto minmax(0, 1fr) / auto minmax(0, 1fr);
   padding: 12px 24px 16px 8px;
+}
+
+/* Past the oldest Matrix: the Matrix area is empty but for this, in big bold handwriting (and the settings gear). */
+.matrix.no-earlier p {
+  grid-area: 2 / 2;
+  place-self: center;
+  margin: 0;
+  font: 700 56px/1.1 Caveat, cursive;
 }
 
 .axis {
@@ -470,4 +487,44 @@ body.dragging {
 .dividers svg {
   display: block;
   overflow: visible;
+}
+
+/* The "isn't running" card, over the dimmed page, which takes no changes while it's up. */
+.app[inert] {
+  opacity: 0.45;
+  filter: grayscale(0.4);
+}
+
+.not-running {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+}
+
+.not-running-card {
+  background: var(--panel);
+  max-width: 420px;
+}
+
+.not-running-card [role='alertdialog'] {
+  padding: 26px 34px;
+  text-align: center;
+  outline: none;
+}
+
+.not-running-card h2 {
+  font: 700 34px/1 Caveat, cursive;
+  margin-bottom: 12px;
+}
+
+.not-running-card p {
+  margin: 4px 0;
+}
+
+.not-running-card .faint {
+  color: var(--muted);
+  font-style: italic;
 }

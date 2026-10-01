@@ -8,8 +8,8 @@ import { join } from 'node:path';
 import { test as base, expect, type Page } from '@playwright/test';
 import { createClient } from '@fourfold/core';
 
-/** Not the fixed port in core, so the tests never clash with a Fourfold already running. */
-const TEST_PORT = 4799;
+/** Not the fixed port in core, so the tests never clash with a Fourfold already running; FOURFOLD_TEST_PORT lets parallel checkouts each use their own. */
+const TEST_PORT = Number(process.env.FOURFOLD_TEST_PORT ?? 4799);
 export const BASE_URL = `http://localhost:${TEST_PORT}`;
 
 class Server {
@@ -35,7 +35,8 @@ class Server {
 
   async stop() {
     const proc = this.proc;
-    if (!proc || proc.exitCode !== null) return;
+    // A server already stopped has exited with a signal, not an exit code.
+    if (!proc || proc.exitCode !== null || proc.signalCode !== null) return;
     const exited = new Promise((r) => proc.once('exit', r));
     proc.kill();
     await exited;

@@ -1,0 +1,123 @@
+/* The settings gear, over the Matrix's bottom-right corner */
+.settings {
+  grid-area: 2 / 2;
+  align-self: end;
+  justify-self: end;
+  position: relative;
+  z-index: 2;
+  margin: 0 -14px -8px 0;
+}
+
+.gear {
+  border-radius: 50%;
+}
+
+/* The pop-over: the browser puts it in the top layer; it's placed above the gear when it opens. */
+.settings-popover {
+  inset: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  overflow: visible;
+}
+
+.sketch-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 18px 16px;
+  background: var(--panel);
+  box-shadow: 0 6px 18px var(--shadow);
+}
+
+.sketch-panel > svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.settings-popover fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.settings-popover legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font: 700 26px/1.2 Caveat, cursive;
+}
+
+.settings-group .caption {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--faint);
+}
+
+.choices {
+  display: flex;
+  gap: 8px;
+}
+
+.choice label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* The real radio button is hidden; the choice it makes is shown, boxed while chosen. */
+.choice input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+}
+
+.choice:not(.is-chosen) > svg {
+  display: none;
+}
+
+.choice:hover {
+  background: var(--soft);
+}
+
+.choice:has(input:focus-visible) {
+  outline: 2px solid var(--strike);
+  outline-offset: 2px;
+}
+
+.swatch {
+  display: block;
+  flex: none;
+  overflow: visible;
+  color: var(--muted);
+}
+
+/* The rough-line strike, wiped on from left to right */
+.wiping-on {
+  animation: wipe-on 0.4s ease-out both;
+}
+
+@keyframes wipe-on {
+  from {
+    clip-path: inset(-10px 100% -10px -10px);
+  }
+  to {
+    clip-path: inset(-10px -10px -10px -10px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wiping-on {
+    animation: none;
+  }
+}

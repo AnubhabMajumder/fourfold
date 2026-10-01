@@ -46,6 +46,8 @@ export function createClient(baseUrl = '', fetchImpl: Fetch = (input, init) => f
 
   return {
     taskList: () => call<Task[]>('GET', '/task-list'),
+    /** The dates that have a Matrix, oldest first. */
+    matrixDates: () => call<CalendarDate[]>('GET', '/matrices'),
     /** A date's Matrix, or `null` if nothing has been placed on that date. */
     async matrix(date: CalendarDate): Promise<Matrix | null> {
       try {

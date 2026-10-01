@@ -16,6 +16,9 @@ export const SEEDS = {
   dividers: 31,
   /** The hatching of an all-Completed Quadrant; each Quadrant adds its index in QUADRANTS. */
   hatching: 51,
+  gear: 61,
+  /** The settings pop-over's box; its swatches add their index in SCHEMES. */
+  settings: 62,
 } as const;
 
 /** A seed from a stable id (FNV-1a), in rough.js's range 1 … 2^31 − 2. */
@@ -56,6 +59,9 @@ export const DELETE_MARK: Options = { roughness: 0.9, bowing: 0.6, strokeWidth: 
 
 /** The pencil for a checkbox's tick, drawn in the strike colour. */
 export const TICK: Options = { roughness: 1.2, strokeWidth: 2.4 };
+
+/** The pencil for the rough-line strike: a thick, bowed pencil line through the text. */
+export const ROUGH_STRIKE: Options = { roughness: 1.6, bowing: 2, strokeWidth: 3.4 };
 
 /** The hatching across an all-Completed Quadrant, in the strike colour. */
 export const HATCHING: Options = {
@@ -121,6 +127,37 @@ export function miniMatrix(size: number, seed: number, marked?: number): SketchP
   const fill = { ...ICON, seed: seed + 3, stroke: 'none', fill: 'currentColor', hachureGap: 2.2, fillWeight: 1.1 };
   return [...shape, ...roughRect(x + 1.5, y + 1.5, half - 3, half - 3, fill)];
 }
+
+/** A sketched gear, `size` px square: a toothed wheel round a hole. */
+export function gear(size: number, seed: number): SketchPath[] {
+  const c = size / 2;
+  const teeth = 8;
+  const [outer, inner] = [size * 0.46, size * 0.34];
+  const points: [number, number][] = [];
+  // Each tooth is a flat top between two flanks, so four corners per tooth.
+  for (let i = 0; i < teeth * 4; i++) {
+    const a = ((i - 1.5) / (teeth * 4)) * 2 * Math.PI;
+    const r = i % 4 < 2 ? outer : inner;
+    points.push([c + r * Math.cos(a), c + r * Math.sin(a)]);
+  }
+  return [...paths(gen.polygon(points, { ...ICON, seed })), ...paths(gen.circle(c, c, size * 0.3, { ...ICON, seed: seed + 1 }))];
+}
+
+/**
+ * A colour scheme's swatch, `size` px square: its box, and two short lines, one for its ink and one for its strike.
+ */
+export function swatch(size: number, seed: number) {
+  const line = { ...ICON, strokeWidth: 2.4, disableMultiStroke: true };
+  return {
+    box: roughRect(2, 2, size - 4, size - 4, { ...ICON, seed }),
+    ink: roughLine(size * 0.28, size * 0.4, size * 0.72, size * 0.4, { ...line, seed: seed + 1 }),
+    strike: roughLine(size * 0.28, size * 0.62, size * 0.6, size * 0.62, { ...line, seed: seed + 2 }),
+  };
+}
+
+/** The rough-line strike through one line of text, the line's box being `x, y, w, h`. Stroke it. */
+export const roughStrike = (x: number, y: number, w: number, h: number, seed: number) =>
+  roughLine(x - 2, y + h * 0.56, x + w + 2, y + h * 0.52, { ...ROUGH_STRIKE, seed });
 
 /** A sketched × filling a `size` square: two crossing strokes, each with its own seed. */
 export const cross = (size: number, seed: number, o: Options) => [

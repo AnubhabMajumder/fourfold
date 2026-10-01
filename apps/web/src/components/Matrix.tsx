@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { formatDate, QUADRANT_NAMES, QUADRANTS, stateOf, type Task } from '@fourfold/core';
 import { DropList, useDraggable } from '../drag/drag.tsx';
+import { SettingsGear } from '../settings/Settings.tsx';
 import { SEEDS, seedOf } from '../sketch/geometry.ts';
 import { CheckboxMark, Dividers, Hatching, MiniList } from '../sketch/Sketch.tsx';
 import { useStore } from '../store.ts';
@@ -39,6 +40,7 @@ export function Matrix() {
           );
         })}
       </div>
+      <SettingsGear />
     </section>
   );
 }

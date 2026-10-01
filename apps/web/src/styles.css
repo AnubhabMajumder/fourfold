@@ -110,6 +110,15 @@ ul {
   font-size: 22px;
 }
 
+/* ‹ past the oldest Matrix, or › at the latest date: faded, sketch and all. */
+.date-nav .sketch-box:has(> button:disabled) {
+  opacity: 0.3;
+}
+
+.date-nav button:disabled {
+  cursor: default;
+}
+
 .body {
   flex: 1;
   display: flex;
@@ -281,6 +290,14 @@ body.dragging {
   display: grid;
   grid-template: auto minmax(0, 1fr) / auto minmax(0, 1fr);
   padding: 12px 24px 16px 8px;
+}
+
+/* Past the oldest Matrix: the Matrix area is empty but for this, in big bold handwriting. */
+.matrix.no-earlier {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 700 56px/1.1 Caveat, cursive;
 }
 
 .axis {

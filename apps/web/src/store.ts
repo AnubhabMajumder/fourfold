@@ -4,8 +4,12 @@ import { createContext, useContext, useSyncExternalStore } from 'react';
 import {
   emptyMatrix,
   isBlank,
+  isFrozen,
+  latestPlaceableDate,
   localDate,
   newTask,
+  nextDate,
+  previousDate,
   QUADRANTS,
   RefusedError,
   refusalFor,
@@ -23,8 +27,18 @@ import {
 export type State = {
   /** The date whose Matrix is on screen. */
   date: CalendarDate;
+  /** Whether ‹ has gone past the oldest Matrix: the Matrix area shows "No earlier Matrix", and › returns to `date`. */
+  noEarlier: boolean;
+  /** The dates that have a Matrix, oldest first. */
+  matrixDates: CalendarDate[];
   taskList: Task[];
   matrix: Matrix;
+  /**
+   * The time the screen was last drawn for. It moves on only when that changes what's allowed on screen (the day,
+   * whether tomorrow is reachable, whether the Matrix on screen is frozen); every change is checked against the clock
+   * at the moment it's made.
+   */
+  now: Date;
 };
 
 /** A change as the screen shows it. It must leave the state alone if it no longer applies. */
@@ -62,6 +76,16 @@ function putTask(s: State, id: string, to: ListId, index: number, as: (t: Task) 
   return to === 'task-list' ? { ...out, taskList: moved } : { ...out, matrix: { ...out.matrix, quadrants: { ...quadrants, [to]: moved } } };
 }
 
+/** How often the screen looks at the clock. */
+const CLOCK_CHECK_MS = 1000;
+
+/** What the time decides on screen, while `date` is viewed: the screen is redrawn only when this changes. */
+const clockKey = (date: CalendarDate, now: Date) => `${localDate(now)} ${latestPlaceableDate(now)} ${isFrozen(date, now)}`;
+
+/** The dates that have a Matrix, with `date` added or taken away, oldest first. */
+const withDate = (dates: CalendarDate[], date: CalendarDate, has: boolean) =>
+  has === dates.includes(date) ? dates : has ? [...dates, date].sort() : dates.filter((d) => d !== date);
+
 export class Store {
   /** What the API has said it holds. */
   private confirmed: State;
@@ -73,9 +97,21 @@ export class Store {
   private queue: Promise<void> = Promise.resolve();
   private readonly client: Client;
 
-  constructor(client: Client, today: CalendarDate = localDate(new Date())) {
+  constructor(client: Client, now: Date = new Date()) {
     this.client = client;
-    this.confirmed = this.state = { date: today, taskList: [], matrix: emptyMatrix(today) };
+    // The app always opens on today.
+    const today = localDate(now);
+    this.confirmed = this.state = { date: today, noEarlier: false, matrixDates: [], taskList: [], matrix: emptyMatrix(today), now };
+    // Nothing is scheduled to happen at 06:00 or 20:00: the screen just looks at the clock now and then, and redraws
+    // when what it allows has changed, e.g. a Matrix on screen freezing, which then stays and refuses changes.
+    setInterval(() => this.watchClock(), CLOCK_CHECK_MS);
+  }
+
+  private watchClock() {
+    const now = new Date();
+    if (clockKey(this.confirmed.date, now) === clockKey(this.confirmed.date, this.confirmed.now)) return;
+    this.confirmed = { ...this.confirmed, now };
+    this.show();
   }
 
   subscribe = (listener: () => void) => {
@@ -116,14 +152,52 @@ export class Store {
     this.change((s) => ({ ...s, taskList: apply(s.taskList) }), send);
   }
 
-  /** Fetches the Task List and the Matrix on screen; changes not yet sent stay on top of what comes back. */
+  /**
+   * Fetches the Task List, the dates that have a Matrix, and the Matrix on screen; changes not yet sent stay on top of
+   * what comes back.
+   */
   refresh() {
     this.enqueue(async () => {
       const date = this.confirmed.date;
-      const [taskList, matrix] = await Promise.all([this.client.taskList(), this.client.matrix(date)]);
-      this.confirmed = { ...this.confirmed, taskList, matrix: matrix ?? emptyMatrix(date) };
+      const [taskList, matrixDates, matrix] = await Promise.all([this.client.taskList(), this.client.matrixDates(), this.client.matrix(date)]);
+      // If another date has been chosen meanwhile, its own fetch brings its Matrix.
+      const viewed = this.confirmed.date === date ? { matrix: matrix ?? emptyMatrix(date) } : {};
+      this.confirmed = { ...this.confirmed, taskList, matrixDates, ...viewed };
       this.show();
     });
+  }
+
+  /** Shows `date`'s Matrix: at once as an empty frame, then as fetched. Looking at a date creates nothing. */
+  private view(date: CalendarDate) {
+    this.confirmed = { ...this.confirmed, date, noEarlier: false, matrix: emptyMatrix(date), now: new Date() };
+    this.show();
+    this.refresh();
+  }
+
+  /** Where ‹ goes, at the time the screen was drawn for: `null` when it's disabled. */
+  previous = (s: State = this.state) => (s.noEarlier ? null : (previousDate(s.date, s.matrixDates, s.now) ?? 'no-earlier'));
+
+  /** Where › goes, at the time the screen was drawn for: `null` when it's disabled. */
+  next = (s: State = this.state) => (s.noEarlier ? s.date : nextDate(s.date, s.matrixDates, s.now));
+
+  /** ‹: to the previous date that has a Matrix (or today), or, past the oldest, to "No earlier Matrix". */
+  goBack() {
+    const to = this.previous({ ...this.state, now: new Date() });
+    if (to === 'no-earlier') {
+      this.confirmed = { ...this.confirmed, noEarlier: true };
+      this.show();
+    } else if (to) this.view(to);
+  }
+
+  /** ›: back from "No earlier Matrix", or on to the next date that has a Matrix, today, or (from 20:00) tomorrow. */
+  goForward() {
+    if (this.state.noEarlier) {
+      this.confirmed = { ...this.confirmed, noEarlier: false };
+      this.show();
+      return;
+    }
+    const to = this.next({ ...this.state, now: new Date() });
+    if (to) this.view(to);
   }
 
   /** Adds a Task to the top of the Task List at once, and sends it. Returns whether it was added. */
@@ -138,33 +212,30 @@ export class Store {
     return true;
   }
 
-  /** The app shows today, so once midnight has passed it moves on to the new day's Matrix. */
-  private followToday() {
-    const today = localDate(new Date());
-    if (this.confirmed.date === today) return;
-    this.confirmed = { ...this.confirmed, date: today, matrix: emptyMatrix(today) };
-    this.show();
-    this.refresh();
-  }
-
   /**
    * Moves a Task List Task into a Quadrant of the Matrix on screen, at `position` there or at its bottom without one.
    * Returns whether the rules allow it.
    */
   place(id: string, quadrant: Quadrant, position?: number) {
-    this.followToday();
-    const { date, taskList } = this.state;
+    const { date, taskList, noEarlier } = this.state;
     const task = taskList.find((t) => t.id === id);
-    if (!task || refusalToPlace(task, date, new Date())) return false;
+    if (noEarlier || !task || refusalToPlace(task, date, new Date())) return false;
     this.change(
       (s) =>
         s.taskList.some((x) => x.id === id) && s.matrix.date === date
-          ? putTask(s, id, quadrant, position ?? s.matrix.quadrants[quadrant].length, (t) => ({ ...t, matrixDate: date, quadrant }))
+          ? {
+              ...putTask(s, id, quadrant, position ?? s.matrix.quadrants[quadrant].length, (t) => ({ ...t, matrixDate: date, quadrant })),
+              // The first Placement on a date creates its Matrix.
+              matrixDates: withDate(s.matrixDates, date, true),
+            }
           : s,
       () => this.client.place(id, date, quadrant, position),
     );
     return true;
   }
+
+  /** Whether the Matrix on screen is frozen, at the time the screen was drawn for. */
+  frozen = (s: State = this.state) => isFrozen(s.date, s.now);
 
   /**
    * Changes a Task's text. Empty text deletes a Task in the Task List, and leaves a placed Task's text as it was, so
@@ -172,7 +243,7 @@ export class Store {
    */
   edit(id: string, text: string) {
     const task = findTask(this.state, id);
-    if (!task) return;
+    if (!task || refusalFor('edit', task, new Date())) return;
     if (isBlank(text)) {
       if (stateOf(task) === 'in-task-list') this.remove(id);
       return;
@@ -187,7 +258,7 @@ export class Store {
   /** Completes a placed Task, or un-completes a Completed one. It stays where it is. */
   setCompleted(id: string, completed: boolean) {
     const task = findTask(this.state, id);
-    if (!task || refusalFor(completed ? 'complete' : 'uncomplete', task)) return;
+    if (!task || refusalFor(completed ? 'complete' : 'uncomplete', task, new Date())) return;
     const completedAt = completed ? new Date().toISOString() : null;
     this.change(
       (s) => updateTask(s, id, (t) => ({ ...t, completedAt })),
@@ -198,12 +269,15 @@ export class Store {
   /** Sends an unfinished placed Task back to the Task List, at `position` there or at its top without one, leaving no trace in the Matrix. */
   returnToTaskList(id: string, position?: number) {
     const task = findTask(this.state, id);
-    if (!task || refusalFor('return', task)) return;
+    if (!task || refusalFor('return', task, new Date())) return;
     this.change(
-      (s) =>
-        s.taskList.some((x) => x.id === id)
-          ? s
-          : putTask(s, id, 'task-list', position ?? 0, (t) => ({ ...t, matrixDate: null, quadrant: null, completedAt: null })),
+      (s) => {
+        if (s.taskList.some((x) => x.id === id) || !findTask(s, id)) return s;
+        const out = putTask(s, id, 'task-list', position ?? 0, (t) => ({ ...t, matrixDate: null, quadrant: null, completedAt: null }));
+        // Returning the last Task removes its Matrix.
+        const empty = QUADRANTS.every((q) => out.matrix.quadrants[q].length === 0);
+        return { ...out, matrixDates: withDate(out.matrixDates, out.matrix.date, !empty) };
+      },
       () => this.client.return(id, position),
     );
   }
@@ -219,29 +293,31 @@ export class Store {
   /** Moves a Task within the list it's in, or into another Quadrant of its Matrix, so that it ends up at `index` of `to`. */
   move(id: string, to: ListId, index: number) {
     const task = findTask(this.state, id);
-    const destination = this.destination(to);
-    if (!task || refusalToMove(task, destination)) return;
+    const now = new Date();
+    if (!task || refusalToMove(task, this.destination(to), now)) return;
     if (listOf(this.state, to)[index]?.id === id) return;
     const date = this.state.matrix.date;
     this.change(
       (s) => {
         const t = findTask(s, id);
-        if (!t || refusalToMove(t, this.destination(to, s))) return s;
+        if (!t || refusalToMove(t, this.destination(to, s), now)) return s;
         return putTask(s, id, to, index, (x) => (to === 'task-list' ? x : { ...x, quadrant: to }));
       },
       () => this.client.move(id, to === 'task-list' ? to : { date, quadrant: to }, index),
     );
   }
 
-  /** What dropping the Task with `id` into `to` does, at the position it's dropped at; `null` if the rules refuse it. */
+  /**
+   * What dropping the Task with `id` into `to` does, at the position it's dropped at; `null` if the rules refuse it.
+   * Checked against the clock at the moment, so a drag that outlasts its Matrix's freezing snaps back.
+   */
   private dropping(id: string, to: ListId): ((index: number) => void) | null {
     const task = findTask(this.state, id);
-    if (!task) return null;
-    if (refusalToMove(task, this.destination(to)) === null) return (index) => this.move(id, to, index);
-    if (to === 'task-list') return refusalFor('return', task) ? null : (index) => this.returnToTaskList(id, index);
-    // Checked against the Matrix on screen, so that a Task lands where it's dropped: once midnight has passed, the
-    // Matrix still showing yesterday no longer takes Placements.
-    return refusalToPlace(task, this.state.matrix.date, new Date()) ? null : (index) => this.place(id, to, index);
+    const now = new Date();
+    if (!task || this.state.noEarlier) return null;
+    if (refusalToMove(task, this.destination(to), now) === null) return (index) => this.move(id, to, index);
+    if (to === 'task-list') return refusalFor('return', task, now) ? null : (index) => this.returnToTaskList(id, index);
+    return refusalToPlace(task, this.state.matrix.date, now) ? null : (index) => this.place(id, to, index);
   }
 
   /** Whether the rules let the Task with `id` be dropped into `to`: a target that doesn't accept isn't offered. */

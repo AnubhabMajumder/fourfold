@@ -44,8 +44,9 @@ test.describe('getting around Matrices', () => {
     await previous(app).click();
 
     await expect(noEarlier(app)).toHaveText('No earlier Matrix');
-    await expect(noEarlier(app)).toHaveCSS('font-weight', '700');
-    await expect(noEarlier(app)).toHaveCSS('font-family', /Caveat/);
+    await expect(noEarlier(app).getByText('No earlier Matrix')).toHaveCSS('font-weight', '700');
+    await expect(noEarlier(app).getByText('No earlier Matrix')).toHaveCSS('font-family', /Caveat/);
+    await expect(noEarlier(app).getByRole('button', { name: 'Settings' })).toBeVisible();
     await expect(noEarlier(app).getByRole('region')).toHaveCount(0);
     await expect(matrix(app)).toHaveCount(0);
     await expect(header(app)).toHaveText(/^Fourfold\s*‹\s*›$/);

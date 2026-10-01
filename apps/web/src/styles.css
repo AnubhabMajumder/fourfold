@@ -292,11 +292,11 @@ body.dragging {
   padding: 12px 24px 16px 8px;
 }
 
-/* Past the oldest Matrix: the Matrix area is empty but for this, in big bold handwriting. */
-.matrix.no-earlier {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* Past the oldest Matrix: the Matrix area is empty but for this, in big bold handwriting (and the settings gear). */
+.matrix.no-earlier p {
+  grid-area: 2 / 2;
+  place-self: center;
+  margin: 0;
   font: 700 56px/1.1 Caveat, cursive;
 }
 

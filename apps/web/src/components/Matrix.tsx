@@ -15,6 +15,7 @@ export function Matrix() {
     return (
       <section className="matrix no-earlier" aria-label="No earlier Matrix">
         <p>No earlier Matrix</p>
+        <SettingsGear />
       </section>
     );
   // A Frozen Matrix looks exactly like an editable one: its controls just don't respond.

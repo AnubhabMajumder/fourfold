@@ -9,18 +9,21 @@ export function TaskText({
   id,
   text,
   strike,
+  editable = true,
   onSave,
 }: {
   /** The id of the text's element, for whatever it labels. */
   id?: string;
   text: string;
   strike?: { seed: number; done: boolean; drawOn: boolean };
+  /** Whether double-click starts an edit: in a Frozen Matrix it does nothing. */
+  editable?: boolean;
   onSave: (text: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   if (!editing)
     return (
-      <span id={id} className="task-text" onDoubleClick={() => setEditing(true)}>
+      <span id={id} className="task-text" onDoubleClick={() => editable && setEditing(true)}>
         {strike ? (
           <Strike seed={strike.seed} done={strike.done} drawOn={strike.drawOn}>
             {text}

@@ -13,6 +13,12 @@ export function isCalendarDate(s: string): s is CalendarDate {
   return localDate(new Date(y, m - 1, d)) === s;
 }
 
+/** The calendar date `days` days after `date` (before it, if negative). */
+export function addDays(date: CalendarDate, days: number): CalendarDate {
+  const [y, m, d] = date.split('-').map(Number) as [number, number, number];
+  return localDate(new Date(y, m - 1, d + days));
+}
+
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 

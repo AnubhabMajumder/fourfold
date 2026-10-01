@@ -78,6 +78,18 @@ export function createApp({ db, clock = () => new Date() }: AppOptions) {
 
     .get('/task-list', (c) => c.json(taskList().all().map(toTask)))
 
+    /** The dates that have a Matrix, oldest first. */
+    .get('/matrices', (c) =>
+      c.json(
+        db
+          .select()
+          .from(matrices)
+          .orderBy(asc(matrices.date))
+          .all()
+          .map((m) => m.date),
+      ),
+    )
+
     .get('/matrices/:date', (c) => {
       const date = calendarDate(c.req.param('date'));
       if (!db.select().from(matrices).where(eq(matrices.date, date)).get()) return c.json({ error: 'No Matrix for this date' }, 404);
@@ -108,15 +120,22 @@ export function createApp({ db, clock = () => new Date() }: AppOptions) {
       const b = await body(c);
       if (typeof b.text !== 'string') throw new BadRequest('text must be a string');
       if (isBlank(b.text)) return refuse(c, 'empty_text');
-      const row = db.update(tasks).set({ text: b.text.trim() }).where(eq(tasks.id, c.req.param('id'))).returning().get();
-      return row ? c.json(toTask(row)) : refuse(c, 'task_not_found');
+      const text = b.text.trim();
+      const now = clock();
+      return db.transaction((tx) => {
+        const task = findTask(tx, c.req.param('id'));
+        if (!task) return refuse(c, 'task_not_found');
+        const refusal = refusalFor('edit', task, now);
+        if (refusal) return refuse(c, refusal);
+        return c.json(toTask(tx.update(tasks).set({ text }).where(eq(tasks.id, task.id)).returning().get()!));
+      });
     })
 
     .delete('/tasks/:id', (c) =>
       db.transaction((tx) => {
         const task = findTask(tx, c.req.param('id'));
         if (!task) return refuse(c, 'task_not_found');
-        const refusal = refusalFor('delete', task);
+        const refusal = refusalFor('delete', task, clock());
         if (refusal) return refuse(c, refusal);
         tx.delete(tasks).where(eq(tasks.id, task.id)).run();
         return c.body(null, 204);
@@ -137,7 +156,7 @@ export function createApp({ db, clock = () => new Date() }: AppOptions) {
       return db.transaction((tx) => {
         const task = findTask(tx, id);
         if (!task) return refuse(c, 'task_not_found');
-        const refusal = refusalToMove(task, to);
+        const refusal = refusalToMove(task, to, clock());
         if (refusal) return refuse(c, refusal);
         // The list as it will be around the moved Task; a key between its new neighbours puts it at `index` while
         // every other row keeps its key.
@@ -171,8 +190,8 @@ export function createApp({ db, clock = () => new Date() }: AppOptions) {
     })
 
     /** Completing and un-completing a placed Task change only `completed_at`: it stays where it is. */
-    .post('/tasks/:id/complete', (c) => setCompleted(c, 'complete', clock().toISOString()))
-    .post('/tasks/:id/uncomplete', (c) => setCompleted(c, 'uncomplete', null))
+    .post('/tasks/:id/complete', (c) => setCompleted(c, 'complete'))
+    .post('/tasks/:id/uncomplete', (c) => setCompleted(c, 'uncomplete'))
 
     /** Body (optional): `position`, the index in the Task List the Task is returned to; without one, the top. */
     .post('/tasks/:id/return', async (c) => {
@@ -180,7 +199,7 @@ export function createApp({ db, clock = () => new Date() }: AppOptions) {
       return db.transaction((tx) => {
         const task = findTask(tx, c.req.param('id'));
         if (!task) return refuse(c, 'task_not_found');
-        const refusal = refusalFor('return', task);
+        const refusal = refusalFor('return', task, clock());
         if (refusal) return refuse(c, refusal);
         const keys = taskList(tx).all().map((t) => t.position);
         const position = keyAt(keys, at ?? 0);
@@ -198,11 +217,13 @@ export function createApp({ db, clock = () => new Date() }: AppOptions) {
       });
     });
 
-  function setCompleted(c: Context, change: 'complete' | 'uncomplete', completedAt: string | null) {
+  function setCompleted(c: Context, change: 'complete' | 'uncomplete') {
+    const now = clock();
+    const completedAt = change === 'complete' ? now.toISOString() : null;
     return db.transaction((tx) => {
       const task = findTask(tx, c.req.param('id')!);
       if (!task) return refuse(c, 'task_not_found');
-      const refusal = refusalFor(change, task);
+      const refusal = refusalFor(change, task, now);
       if (refusal) return refuse(c, refusal);
       return c.json(toTask(tx.update(tasks).set({ completedAt }).where(eq(tasks.id, task.id)).returning().get()!));
     });

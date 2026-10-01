@@ -236,7 +236,7 @@ test.describe('placing with the mini-Matrix buttons', () => {
   test.describe('left open past midnight', () => {
     test.use({ startAt: new Date(`${TODAY}T23:59:58`) });
 
-    test("places into the new day's Matrix", async ({ app, api }) => {
+    test("stays on the day's Matrix, which takes Placements until it freezes, and › goes on to the new day", async ({ app, api }) => {
       const [, probe] = await api.write('Buy milk', 'Probe');
       await app.reload();
       // Both clocks go past midnight: the server's runs on (the probe goes in once it has), the page's is moved on.
@@ -248,9 +248,13 @@ test.describe('placing with the mini-Matrix buttons', () => {
       await placeButton(app, 'Buy milk').click();
       await app.getByRole('button', { name: 'Place in Important + Urgent' }).click();
 
-      await expect(matrix(app)).toHaveAccessibleName('Matrix for Friday, 25 September');
+      await expect(matrix(app)).toHaveAccessibleName('Matrix for Thursday, 24 September');
       await expect(quadrant(app, 'Important + Urgent').getByRole('listitem')).toHaveText(['Buy milk']);
-      await expect.poll(async () => (await api.matrix('2026-09-25'))?.quadrants['important-urgent'].map((t) => t.text)).toEqual(['Buy milk']);
+      await expect.poll(async () => (await api.matrix(TODAY))?.quadrants['important-urgent'].map((t) => t.text)).toEqual(['Buy milk']);
+
+      await app.getByRole('button', { name: 'Next date' }).click();
+      await expect(matrix(app)).toHaveAccessibleName('Matrix for Friday, 25 September');
+      await expect(quadrant(app, 'Not Important + Not Urgent').getByRole('listitem')).toHaveText(['Probe']);
     });
   });
 

@@ -1,7 +1,8 @@
 // The hand-drawn layers: decorative, aria-hidden SVG over or behind real controls and text, which keep all the
 // meaning. Each shape is redrawn only when its element's size changes.
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BOX, cross, DELETE_MARK, HATCHING, inkLine, miniList, miniMatrix, roughRect, tick, zigzag, type SketchPath } from './geometry.ts';
+import { useSettings } from '../settings/settings.ts';
+import { BOX, cross, DELETE_MARK, gear, HATCHING, inkLine, miniList, miniMatrix, roughRect, roughStrike, swatch, tick, zigzag, type SketchPath } from './geometry.ts';
 
 /** An element's size, kept up to date as it resizes. */
 function useSize<T extends HTMLElement>() {
@@ -37,6 +38,39 @@ export function SketchBox({ seed, className = '', children }: { seed: number; cl
         <Paths paths={paths} />
       </svg>
     </span>
+  );
+}
+
+/** A block in a sketched box, sized to whatever the block ends up being. */
+export function SketchPanel({ seed, children }: { seed: number; children: ReactNode }) {
+  const [ref, { w, h }] = useSize<HTMLDivElement>();
+  const paths = useMemo(() => (w && h ? roughRect(2, 2, w - 4, h - 4, { ...BOX, seed }) : []), [w, h, seed]);
+  return (
+    <div ref={ref} className="sketch-panel">
+      {children}
+      <svg aria-hidden="true" width={w} height={h}>
+        <Paths paths={paths} />
+      </svg>
+    </div>
+  );
+}
+
+const SWATCH_SIZE = 26;
+
+/** A colour scheme's swatch: its background, with a line of its ink and one of its strike. */
+export function Swatch({ seed, bg, ink, strike }: { seed: number; bg: string; ink: string; strike: string }) {
+  const paths = useMemo(() => swatch(SWATCH_SIZE, seed), [seed]);
+  return (
+    <svg aria-hidden="true" className="swatch" width={SWATCH_SIZE} height={SWATCH_SIZE}>
+      <rect x={3} y={3} width={SWATCH_SIZE - 6} height={SWATCH_SIZE - 6} rx={3} fill={bg} />
+      <Paths paths={paths.box} />
+      <g color={ink}>
+        <Paths paths={paths.ink} />
+      </g>
+      <g color={strike}>
+        <Paths paths={paths.strike} />
+      </g>
+    </svg>
   );
 }
 
@@ -87,6 +121,18 @@ export function Dividers({ seed }: { seed: number }) {
         ))}
       </svg>
     </div>
+  );
+}
+
+const GEAR_SIZE = 30;
+
+/** The sketched gear of the settings button. */
+export function Gear({ seed }: { seed: number }) {
+  const paths = useMemo(() => gear(GEAR_SIZE, seed), [seed]);
+  return (
+    <svg aria-hidden="true" className="icon" width={GEAR_SIZE} height={GEAR_SIZE}>
+      <Paths paths={paths} />
+    </svg>
   );
 }
 
@@ -180,7 +226,8 @@ function measureLines(text: HTMLElement, box: HTMLElement): Line[] {
 type StrikePhase = 'none' | 'drawn' | 'drawing' | 'rubbing-out';
 
 /**
- * Text struck through, while `done`, with a felt-pen zigzag across each of its lines.
+ * Text struck through, while `done`, across each of its lines: with a felt-pen zigzag or a thick rough pencil line,
+ * whichever strike style the user has chosen.
  *
  * The text stays real DOM text in the handwriting font, and the strike is a separate SVG layer drawn over it. Never
  * put an SVG turbulence or displacement filter on the text to make it look hand-drawn: filters warp the glyphs, hurt
@@ -189,8 +236,15 @@ type StrikePhase = 'none' | 'drawn' | 'drawing' | 'rubbing-out';
 /** `drawOn`: whether the user has just completed the Task, so that the strike is drawn on rather than shown already drawn. */
 export function Strike({ seed, done, drawOn, children }: { seed: number; done: boolean; drawOn: boolean; children: ReactNode }) {
   const reduced = useReducedMotion();
+  const { strike: style } = useSettings();
   const [was, setWas] = useState(done);
   const [phase, setPhase] = useState<StrikePhase>(done ? 'drawn' : 'none');
+  const [styleWas, setStyleWas] = useState(style);
+  if (style !== styleWas) {
+    // A strike redrawn in another style appears already drawn: it's drawn on only as the user completes the Task.
+    setStyleWas(style);
+    if (phase === 'drawing') setPhase('drawn');
+  }
   if (done !== was) {
     // Under reduced motion the strike appears already drawn, and goes at once. It's drawn on only when the user completes
     // the Task: not on load, nor when a refused un-complete snaps back, nor when a refresh finds it Completed.
@@ -213,7 +267,11 @@ export function Strike({ seed, done, drawOn, children }: { seed: number; done: b
   }, [shown, children]);
 
   const maskId = useId();
-  const strokes = useMemo(() => lines.map((l, i) => zigzag(l.x, l.y, l.w, l.h, seed + i)), [lines, seed]);
+  const zigzags = useMemo(() => (style === 'zigzag' ? lines.map((l, i) => zigzag(l.x, l.y, l.w, l.h, seed + i)) : []), [style, lines, seed]);
+  const roughLines = useMemo(
+    () => (style === 'rough-line' ? lines.map((l, i) => roughStrike(l.x, l.y, l.w, l.h, seed + i)) : []),
+    [style, lines, seed],
+  );
   const drawing = phase === 'drawing' && !reduced;
   return (
     <span ref={box} className="strike">
@@ -221,12 +279,18 @@ export function Strike({ seed, done, drawOn, children }: { seed: number; done: b
       {shown && (
         <svg
           aria-hidden="true"
-          className={phase === 'rubbing-out' ? 'rubbing-out' : undefined}
+          className={phase === 'rubbing-out' ? `${style} rubbing-out` : style}
           onAnimationEnd={(e) => {
             if (e.target === e.currentTarget && phase === 'rubbing-out') setPhase('none');
           }}
         >
-          {strokes.map((z, i) => (
+          {roughLines.map((paths, i) => (
+            // Wiped on from left to right, every line at once.
+            <g key={i} className={drawing ? 'wiping-on' : undefined}>
+              <Paths paths={paths} />
+            </g>
+          ))}
+          {zigzags.map((z, i) => (
             <g key={i}>
               {drawing && (
                 // Drawn on along the pen's path, every line at once: a mask follows the spine of the zigzag with a stroke-dash animation.

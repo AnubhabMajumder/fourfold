@@ -1,7 +1,7 @@
-// Dragging a Task to a position in a list: the Task List now, and the Matrix's Quadrants later. Built on pointer
+// Dragging a Task to a position in a list: the Task List or one of the Matrix's Quadrants. Built on pointer
 // events so that mouse and touch share one path. A mouse drag starts once the pointer moves; a touch drag starts
 // only after a press-and-hold, so that a quick swipe still scrolls. While dragging, the Task follows the pointer as
-// a floating card, and a drop line shows where it will land in the list under the pointer.
+// a floating card, and a drop line shows where it will land in the list under the pointer, if that list accepts it.
 import {
   createContext,
   useContext,
@@ -33,8 +33,8 @@ type Dragging = {
   over: (DropTarget & { lineY: number }) | null;
 };
 
-/** A list registered to take drops: its element, and what to do with a Task dropped in it. */
-type Registered = { el: HTMLElement; onDrop: (id: string, index: number) => void };
+/** A list registered to take drops: its element, whether it accepts a Task, and what to do with one dropped in it. */
+type Registered = { el: HTMLElement; accepts: (id: string) => boolean; onDrop: (id: string, index: number) => void };
 
 class DragController {
   private dragging: Dragging | null = null;
@@ -63,7 +63,9 @@ class DragController {
   private locate(x: number, y: number, id: string): Dragging['over'] {
     const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-drop-list]');
     const list = el?.dataset.dropList;
-    if (!el || !list || this.lists.get(list)?.el !== el) return null;
+    const entry = list === undefined ? undefined : this.lists.get(list);
+    // A list that doesn't accept the Task shows no drop line, and dropping there snaps it back.
+    if (!el || !list || entry?.el !== el || !entry.accepts(id)) return null;
     // The boxes of the other Tasks in the list: the dragged one isn't counted, as it's about to leave its place.
     const taskBoxes = [...el.querySelectorAll<HTMLElement>('[data-drag-id]')]
       .filter((task) => task.dataset.dragId !== id)
@@ -78,7 +80,7 @@ class DragController {
   /** Watches a press on a draggable Task, and runs the drag if it becomes one. */
   press(e: ReactPointerEvent<HTMLElement>, id: string, text: string) {
     if (this.dragging || !e.isPrimary || e.button !== 0) return;
-    if ((e.target as Element).closest('button, input')) return;
+    if ((e.target as Element).closest('button, input, label')) return;
     const el = e.currentTarget;
     const pointerId = e.pointerId;
     const touch = e.pointerType === 'touch';
@@ -189,13 +191,31 @@ export function useDraggable(id: string, text: string) {
   };
 }
 
-/** A list that draggable Tasks can be dropped into, at a position shown by the drop line. */
-export function DropList({ id, onDrop, children }: { id: string; onDrop: (taskId: string, index: number) => void; children: ReactNode }) {
+/** A list that draggable Tasks it `accepts` can be dropped into, at a position shown by the drop line. */
+export function DropList({
+  id,
+  accepts,
+  onDrop,
+  children,
+}: {
+  id: string;
+  accepts: (taskId: string) => boolean;
+  onDrop: (taskId: string, index: number) => void;
+  children: ReactNode;
+}) {
   const drag = useContext(DragContext)!;
   const ref = useRef<HTMLDivElement>(null);
-  const onDropRef = useRef(onDrop);
-  onDropRef.current = onDrop;
-  useLayoutEffect(() => drag.register(id, { el: ref.current!, onDrop: (taskId, index) => onDropRef.current(taskId, index) }), [drag, id]);
+  const handlers = useRef({ accepts, onDrop });
+  handlers.current = { accepts, onDrop };
+  useLayoutEffect(
+    () =>
+      drag.register(id, {
+        el: ref.current!,
+        accepts: (taskId) => handlers.current.accepts(taskId),
+        onDrop: (taskId, index) => handlers.current.onDrop(taskId, index),
+      }),
+    [drag, id],
+  );
   const lineY = useDragging((d) => (d?.over?.list === id ? d.over.lineY : null));
   return (
     <div ref={ref} className="drop-list" data-drop-list={id}>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { formatDate, QUADRANT_NAMES, QUADRANTS, stateOf, type Task } from '@fourfold/core';
+import { DropList, useDraggable } from '../drag/drag.tsx';
 import { SEEDS, seedOf } from '../sketch/geometry.ts';
 import { CheckboxMark, Dividers, Hatching, MiniList } from '../sketch/Sketch.tsx';
 import { useStore } from '../store.ts';
@@ -7,7 +8,7 @@ import { TaskText } from './TaskText.tsx';
 
 /** The Matrix on screen: four Quadrants, left to right and top to bottom in QUADRANTS order. */
 export function Matrix() {
-  const [{ matrix }] = useStore();
+  const [{ matrix }, store] = useStore();
   return (
     <section className="matrix" aria-label={`Matrix for ${formatDate(matrix.date)}`}>
       {/* The axis headers say visually what each Quadrant's label says to a screen reader. */}
@@ -27,11 +28,13 @@ export function Matrix() {
           return (
             <section key={q} className="quadrant" aria-label={QUADRANT_NAMES[q]}>
               {allCompleted && <Hatching seed={SEEDS.hatching + i} />}
-              <ul>
-                {tasks.map((t) => (
-                  <PlacedTask key={t.id} task={t} />
-                ))}
-              </ul>
+              <DropList id={q} accepts={(id) => store.canDrop(id, q)} onDrop={(id, index) => store.drop(id, q, index)}>
+                <ul>
+                  {tasks.map((t) => (
+                    <PlacedTask key={t.id} task={t} />
+                  ))}
+                </ul>
+              </DropList>
             </section>
           );
         })}
@@ -48,8 +51,9 @@ function PlacedTask({ task }: { task: Task }) {
   const completed = stateOf(task) === 'completed';
   // Whether the user last ticked (rather than unticked) the checkbox: only that draws the strike on.
   const [ticked, setTicked] = useState(false);
+  const { isDragging, props } = useDraggable(task.id, task.text);
   return (
-    <li className="placed-task">
+    <li className={`placed-task${isDragging ? ' is-dragged' : ''}`} {...props}>
       <label className="checkbox">
         <input
           type="checkbox"

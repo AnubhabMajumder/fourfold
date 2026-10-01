@@ -16,6 +16,7 @@ import {
   refusalToMove,
   refusalToPlace,
   stateOf,
+  UnreachableError,
   type CalendarDate,
   type Client,
   type Destination,
@@ -39,7 +40,12 @@ export type State = {
    * at the moment it's made.
    */
   now: Date;
+  /** Whether the API has stopped answering: the page shows the "isn't running" card and takes no changes. */
+  unreachable: boolean;
 };
+
+/** How often, while the API isn't answering, the app checks whether it's back. */
+const RECHECK_MS = 3_000;
 
 /** A change as the screen shows it. It must leave the state alone if it no longer applies. */
 type Change = (s: State) => State;
@@ -98,12 +104,22 @@ export class Store {
   private listeners = new Set<() => void>();
   private queue: Promise<void> = Promise.resolve();
   private readonly client: Client;
+  /** The next check on an API that isn't answering, if one is due. */
+  private recheck: ReturnType<typeof setTimeout> | undefined;
 
   constructor(client: Client, now: Date = new Date()) {
     this.client = client;
     // The app always opens on today.
     const today = localDate(now);
-    this.confirmed = this.state = { date: today, noEarlier: false, matrixDates: [], taskList: [], matrix: emptyMatrix(today), now };
+    this.confirmed = this.state = {
+      date: today,
+      noEarlier: false,
+      matrixDates: [],
+      taskList: [],
+      matrix: emptyMatrix(today),
+      now,
+      unreachable: false,
+    };
     // Nothing is scheduled to happen at 06:00 or 20:00: the screen just looks at the clock now and then, and redraws
     // when what it allows has changed, e.g. a Matrix on screen freezing, which then stays and refuses changes. It
     // only reads the local clock: nothing is fetched. One Store lives as long as the page, so it's never cleared.
@@ -132,8 +148,12 @@ export class Store {
     this.queue = this.queue.then(job).catch(() => {});
   }
 
-  /** Shows a change at once and sends it; it stays on screen only if the API accepts it. */
+  /**
+   * Shows a change at once and sends it; it stays on screen only if the API accepts it. While the API isn't
+   * answering, the page takes no changes.
+   */
   private change(change: Change, send: () => Promise<unknown>) {
+    if (this.confirmed.unreachable) return;
     this.pending.push(change);
     this.show();
     this.enqueue(async () => {
@@ -143,6 +163,7 @@ export class Store {
       } catch (err) {
         // Refused: what's on screen is out of date, so fetch what the API actually holds.
         if (err instanceof RefusedError) this.refresh();
+        if (err instanceof UnreachableError) this.showNotRunning();
       } finally {
         this.pending.splice(this.pending.indexOf(change), 1);
         this.show();
@@ -156,18 +177,38 @@ export class Store {
   }
 
   /**
-   * Fetches the Task List, the dates that have a Matrix, and the Matrix on screen; changes not yet sent stay on top of
-   * what comes back.
+   * Fetches everything on screen: the Task List, the dates that have a Matrix, and the Matrix being viewed. Changes not
+   * yet sent stay on top of what comes back. If the API doesn't answer, the "isn't running" card goes up; once it
+   * answers, the card comes down.
    */
   refresh() {
     this.enqueue(async () => {
       const date = this.confirmed.date;
-      const [taskList, matrixDates, matrix] = await Promise.all([this.client.taskList(), this.client.matrixDates(), this.client.matrix(date)]);
-      // If another date has been chosen meanwhile, its own fetch brings its Matrix.
-      const viewed = this.confirmed.date === date ? { matrix: matrix ?? emptyMatrix(date) } : {};
-      this.confirmed = { ...this.confirmed, taskList, matrixDates, ...viewed };
-      this.show();
+      try {
+        const [taskList, matrixDates, matrix] = await Promise.all([this.client.taskList(), this.client.matrixDates(), this.client.matrix(date)]);
+        // If another date has been chosen meanwhile, its own fetch brings its Matrix.
+        const viewed = this.confirmed.date === date ? { matrix: matrix ?? emptyMatrix(date) } : {};
+        this.confirmed = { ...this.confirmed, taskList, matrixDates, ...viewed, unreachable: false };
+        clearTimeout(this.recheck);
+        this.recheck = undefined;
+      } catch (err) {
+        // While the card is up, any failure (say, an API still starting up) means checking again later.
+        if (!(err instanceof UnreachableError) && !this.confirmed.unreachable) throw err;
+        this.showNotRunning();
+      } finally {
+        this.show();
+      }
     });
+  }
+
+  /** The API has stopped answering: puts the card up, and checks every few seconds until the API is back. */
+  private showNotRunning() {
+    this.confirmed = { ...this.confirmed, unreachable: true };
+    // Only while the card is up: otherwise Fourfold never polls the API.
+    this.recheck ??= setTimeout(() => {
+      this.recheck = undefined;
+      this.refresh();
+    }, RECHECK_MS);
   }
 
   /** Shows `date`'s Matrix: at once as an empty frame, then as fetched. Looking at a date creates nothing. */

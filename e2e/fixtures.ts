@@ -35,7 +35,8 @@ class Server {
 
   async stop() {
     const proc = this.proc;
-    if (!proc || proc.exitCode !== null) return;
+    // A server already stopped has exited with a signal, not an exit code.
+    if (!proc || proc.exitCode !== null || proc.signalCode !== null) return;
     const exited = new Promise((r) => proc.once('exit', r));
     proc.kill();
     await exited;
